@@ -1,0 +1,6 @@
+customer_id,first_name,last_name,email,city,country,registration_date
+101,John,Doe,john.doe@example.com,New York,USA,2023-01-15
+102,Jane,Smith,jane.smith@testmail.org,London,UK,2023-02-20
+103,Carlos,Garcia,c.garcia@provider.net,Madrid,Spain,2023-03-10
+104,Yuki,Tanaka,yuki.t@service.jp,Tokyo,Japan,2023-04-05
+105,Ahmed,Khan,ahmed.k@webmail.ae,Dubai,UAE,2023-05-12

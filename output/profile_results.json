@@ -1,0 +1,53 @@
+{
+  "table" : "local_postgres.openmetadata_db.public.table_entity",
+  "timestamp" : 1776511240828,
+  "rowCount" : 500,
+  "columnCount" : 9,
+  "tableMetrics" : {
+    "entropy" : 8.955903478288878
+  },
+  "columns" : [ {
+    "column" : "id",
+    "metrics" : {
+      "entropy" : 8.965784284662018
+    }
+  }, {
+    "column" : "json",
+    "metrics" : {
+      "entropy" : 8.965784284662018
+    }
+  }, {
+    "column" : "updatedat",
+    "metrics" : {
+      "entropy" : 8.961784284662018,
+      "kurtosis" : -1.8901088609330792,
+      "skewness" : 0.34134247173624943,
+      "seasonality" : 1.0
+    }
+  }, {
+    "column" : "updatedby",
+    "metrics" : {
+      "entropy" : 1.1332201431005848
+    }
+  }, {
+    "column" : "deleted",
+    "metrics" : {
+      "entropy" : 0.0
+    }
+  }, {
+    "column" : "fqnhash",
+    "metrics" : {
+      "entropy" : 8.965784284662018
+    }
+  }, {
+    "column" : "name",
+    "metrics" : {
+      "entropy" : 6.635856189774701
+    }
+  }, {
+    "column" : "databaseschemahash",
+    "metrics" : {
+      "entropy" : 4.019014354787288
+    }
+  } ]
+}
