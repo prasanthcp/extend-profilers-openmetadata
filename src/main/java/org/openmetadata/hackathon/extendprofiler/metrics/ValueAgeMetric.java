@@ -38,7 +38,11 @@ public class ValueAgeMetric implements SqlAwareMetric {
     }
 
     @Override
-    public Double computeSql(Connection conn, String tableName, String columnName) {
+    public Double computeSql(Connection conn, String tableName, String columnName, String orderByColumn) {
+        if (orderByColumn == null) {
+            log.debug("No timestamp column for SQL valueAge on {}.{}, falling back", tableName, columnName);
+            return null;
+        }
         String sql = "SELECT EXTRACT(EPOCH FROM (NOW() - " + columnName + ")) / 3600.0 AS age_hours"
             + " FROM " + tableName
             + " WHERE " + columnName + " IS NOT NULL"

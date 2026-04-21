@@ -116,6 +116,10 @@ public class ProfileRunner {
             }
         }
 
+        if (!results.isEmpty()) {
+            new HtmlResultWriter(outputDir + "/LatestReport.html").write(results);
+        }
+
         log.info("Done. Profiled {}/{} tables.", results.size(), tables.size());
     }
 

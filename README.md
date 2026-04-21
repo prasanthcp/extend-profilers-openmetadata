@@ -1,48 +1,4 @@
-<<<<<<< HEAD
-# Project: Extend the profiler with advanced statistical metrics (entropy, kurtosis, skewness, seasonality, value-age) and make them exportable for downstream consumers #26662
-
-## Build (Gradle & Java)
-
-- **JDK:** 21+ recommended. This repo is tested with **Temurin 25** as the JVM running Gradle; the **Gradle Wrapper uses 9.1.0** (needed so Gradle itself runs on Java 25). Compiled bytecode targets **Java 21** (`release = 21`).
-- **Commands:** from this directory run `./gradlew test`, `./gradlew run`, or `./gradlew build`.
-- **No global Gradle install required** — use `./gradlew` only.
-- **If `test` seems broken or prints nothing useful:** run `./gradlew doctor` then `./gradlew clean test --rerun-tasks --info` and check the end of the log for `BUILD SUCCESSFUL` / failures.
-- **Corporate / shim `java` (e.g. Salesforce banner):** point Gradle at a real JDK: `export JAVA_HOME=$(/usr/libexec/java_home -v 21)` (or `-v 25`) then run `./gradlew test` again.
-- **`Permission denied` on `./gradlew`:** `chmod +x gradlew`
-
-# Objectives: 
-- Implementations of new metrics as Metric classes (entropy, kurtosis, value-age, time-series seasonality detectors)
-- exporters to emit metrics to JSON/CSV and OpenMetadata profile payloads
-
-# Starter tasks
-- implement entropy and relative-entropy (per-column) and add tests against known distributions
-- add kurtosis and non-parametric skew metrics with numerical stability checks
-- value-age metric: compute median age of values (timestamp-bearing columns)
-- seasonal/detection metric for time-series columns (autocorrelation or seasonal decomposition)
-- integrate metrics into MetricRegistry and ensure Profiler picks them up via config
-
-Hackathon Idea https://github.com/open-metadata/OpenMetadata/issues/26662
-
-# Architecture:
-
-Ingest: connects to a database (e.g., PostgreSQL/Snowflake) using JDBC.
-Compute: Java library like Apache Commons Math to calculate the "Advanced Metrics" (Entropy, Kurtosis, etc.)
-Export: Provide a REST endpoint or UI button to download these results as CSV/JSON.
-Sync: Use the OpenMetadata Java client to push these values back to the platform.
-
-# Scope for MVP:
-- Support JDBC Connection
-- Accept File-based universal path to make the system connector-agnostic
-- consume OM's stored sample data via APIs when available for some supported advanced stats calculation
-- push the custom metrics to OM through tableprofile APIs
-- pick a schema + auth for final hackathon demo
-
-
-Where is AI used ?
-- Download and set up the required gradle, java's supported versions, dependencies like Apache commons
-- Generating Test files
-=======
-# extend-profilers-openmetadata
+# Extend OpenMetadata Profiler with Advanced Statistical Metrics
 
 Extends OpenMetadata's profiler with advanced statistical metrics -- entropy, kurtosis, skewness, seasonality, and value-age -- and pushes them as custom metrics into the platform.
 
@@ -57,7 +13,7 @@ OpenMetadata's built-in profiler covers the basics: row counts, null ratios, uni
 - Are there repeating patterns over time?
 - How stale is the data in a timestamp column?
 
-This project computes those metrics externally (via JDBC or OM's sample data), pushes them back into OpenMetadata as custom metrics, and also exports them locally as JSON and CSV for downstream consumers.
+This project computes those metrics externally (via JDBC or OM's sample data), pushes them back into OpenMetadata as custom metrics, and also exports them locally as JSON, CSV, and HTML reports for downstream consumers.
 
 ## Data input modes
 
@@ -102,7 +58,7 @@ If a table entry in the config has `jdbcUrl`, the JDBC path is used. Otherwise, 
 +------------+     |                   |     +------------------+
                    |  Profiler engine  |
 +------------+     |  + MetricRegistry |     +------------------+
-| OM Sample  |---->|   + SqlAwareMetric|---->| JSON/CSV Export  |
+| OM Sample  |---->|   + SqlAwareMetric|---->| JSON/CSV/HTML    |
 | DataSource |     +-------------------+     +------------------+
 +------------+
 ```
@@ -111,15 +67,15 @@ If a table entry in the config has `jdbcUrl`, the JDBC path is used. Otherwise, 
 
 **Compute** -- runs each applicable metric against the column data. Metric applicability is driven by column type (numeric, string, timestamp) through the `MetricRegistry`. Metrics that implement `SqlAwareMetric` (Value Age, Seasonality) prefer direct SQL computation when a JDBC connection is available, falling back to in-memory computation otherwise.
 
-**Sync** -- registers custom metric definitions in OM (required for the UI to display them), then pushes computed values via the table profile API. The payload includes `profileSample` and `profileSampleType` so the OM UI reflects sampling metadata.
+**Sync** -- registers custom metric definitions in OM (required for the UI to display them), then pushes computed values via the table profile API. Existing metric definitions are detected and skipped to avoid redundant API calls.
 
-**Export** -- writes results to per-table directories with timestamped files and a `latest.json`/`latest.csv` for stable consumer access.
+**Export** -- writes results to per-table directories with timestamped files and a `latest.json`/`latest.csv` for stable consumer access. Also generates a single `report.html` summarizing all profiled tables with color-coded metrics and human-readable interpretations.
 
 ## How to run
 
 ### Prerequisites
 
-- JDK 21+ (tested with Temurin)
+- JDK 21+ (tested with Temurin 25)
 - A running OpenMetadata instance (local Docker or remote)
 - Network access to the database you want to profile
 
@@ -132,7 +88,7 @@ git clone <repo-url>
 cd extend-profilers-openmetadata
 
 chmod +x gradlew        # if needed
-./gradlew build
+./gradlew fatJar
 ```
 
 ### 2. Create a config file
@@ -190,41 +146,36 @@ Copy `sample-config.json` and fill in your details:
 
 ### 3. Run it
 
-**Via Gradle:**
 ```bash
-./gradlew run --args='my-config.json'
+# If using a corporate Java shim (e.g. Salesforce), point to a real JDK:
+export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
+
+# Build the fat JAR
+./gradlew fatJar
+
+# Run
+$JAVA_HOME/bin/java -jar build/libs/extend-profilers-openmetadata-0.1.0-SNAPSHOT-all.jar my-config.json
 ```
 
-**Via fat JAR (standalone):**
+Or via Gradle directly:
 ```bash
-./gradlew fatJar
-java -jar build/libs/extend-profilers-openmetadata-0.1.0-SNAPSHOT-all.jar my-config.json
+./gradlew run --args='my-config.json'
 ```
 
 ### 4. Check the results
 
 - **OpenMetadata UI** -- go to the table's Profiler tab. Custom metrics show under each column and at the table level. Hover over the metric name to see the description with practical guidance and ranges.
+- **HTML report** -- open `output/LatestReport.html` in a browser for a color-coded summary with human-readable metric interpretations.
 - **Local exports** -- each table gets its own directory under `output/`:
 
 ```
 output/
-  local_postgres_openmetadata_db_public_table_entity/
-    latest.json              <- always the most recent run (stable path for automation)
+  LatestReport.html            <- color-coded HTML summary of all tables
+  local_postgres_.../
+    latest.json                <- always the most recent run (stable path)
     latest.csv
-    2026-04-19T213345.json   <- timestamped history
+    2026-04-19T213345.json     <- timestamped history
     2026-04-19T213345.csv
-  local_postgres_openmetadata_db_public_entity_relationship/
-    latest.json
-    latest.csv
-```
-
-Example CSV output:
-```
-column,entropy,kurtosis,skewness,seasonality,valueAge
-id,8.965784,N/A,N/A,N/A,N/A
-updatedat,8.961784,-1.890109,0.341342,1.000000,456.700000
-updatedby,1.133220,N/A,N/A,N/A,N/A
-deleted,0.000000,N/A,N/A,N/A,N/A
 ```
 
 ## Project structure
@@ -256,21 +207,8 @@ src/main/java/org/openmetadata/hackathon/extendprofiler/
     ProfileResult.java      -- holds table + column metric results
     JsonResultWriter.java   -- writes results to JSON
     CsvResultWriter.java    -- writes results to CSV
+    HtmlResultWriter.java   -- generates color-coded HTML report with metric interpretations
 ```
-
-## How it talks to OpenMetadata
-
-The profiler uses these OM APIs in sequence:
-
-1. `POST /api/v1/users/login` -- authenticate, get JWT token
-2. `GET /api/v1/tables/name/{fqn}?fields=columns,sampleData,customMetrics` -- fetch table metadata + column types
-3. `PUT /api/v1/tables/{id}/customMetric` -- register each metric definition (OM requires this before values show in the UI). Metric descriptions include practical ranges and guidance, visible as tooltips in the OM UI.
-4. Compute metrics -- SQL-native where possible (Value Age, Seasonality), in-memory for the rest
-5. `PUT /api/v1/tables/{id}/tableProfile` -- push table + column profiles with custom metric values, sampling metadata (`profileSample`, `profileSampleType`), and `rowCount` from COUNT(*)
-
-Column-level metrics use `{metricName}_{columnName}` naming to avoid OM's unique-name-per-table constraint.
-
-Each push appends a new timeseries entry in OM. Running the profiler on a schedule (e.g., cron) will build up metric history visible as line charts in the OM Profiler tab.
 
 ## Running tests
 
@@ -278,31 +216,22 @@ Each push appends a new timeseries entry in OM. Running the profiler on a schedu
 ./gradlew test
 ```
 
-The end-to-end test creates sample CSV data, runs all metrics, writes to CSV output, and verifies the results -- no external services needed.
+The test suite includes:
+- **MetricTests** -- 34 unit tests covering all 6 metrics (edge cases, boundary values, type applicability), MetricRegistry type mappings, and HTML report generation with color-coded output
+- **ProfilerEndToEndTest** -- end-to-end test creating sample CSV data, running all metrics, writing to CSV, and verifying results
+- No external services needed for testing
 
 If tests seem broken or print nothing:
 ```bash
 ./gradlew clean test --rerun-tasks --info
 ```
 
-## Logging
+## Known limitations
 
-Logs go to both console and `logs/profiler.log`. Configured via `logback.xml`.
-
-Change log level at runtime:
-```bash
-java -Dlogback.configurationFile=/path/to/custom-logback.xml -jar app.jar config.json
-```
-
-## Troubleshooting
-
-**`Permission denied` on `./gradlew`**
-```bash
-chmod +x gradlew
-```
-
-**OM custom metrics not showing in the UI**
-The metric definition must be registered via `PUT /customMetric` before pushing values. The profiler does this automatically, but if you're debugging, check OM's API response for the table entity to confirm the metric definitions exist.
+- `ORDER BY RANDOM()` and `EXTRACT(EPOCH FROM ...)` are PostgreSQL-specific. Needs dialect abstraction for MySQL, Snowflake, etc.
+- No built-in scheduler. For timeseries to be useful, run via cron or integrate with OM's profiler agent schedule.
+- No guardrails for huge tables -- `COUNT(*)` and `ORDER BY RANDOM()` on billion-row tables could be slow.
+- Seasonality on random-sampled data (in-memory fallback) is unreliable since ordering is lost.
 
 ## Where AI was used
 
@@ -316,4 +245,3 @@ The metric definition must be registered via `PUT /customMetric` before pushing 
 - [OM Profiler Metrics Docs](https://docs.open-metadata.org/v1.12.x/how-to-guides/data-quality-observability/profiler/metrics)
 - [OM Table Profiler API Reference](https://docs.open-metadata.org/v1.11.x/api-reference/data-assets/tables/profiler#table-profiler)
 - [OM Profiler Workflow](https://docs.open-metadata.org/v1.12.x/how-to-guides/data-quality-observability/profiler/profiler-workflow)
->>>>>>> f8110cf (Initial Working Version)

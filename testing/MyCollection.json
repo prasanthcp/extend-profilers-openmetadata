@@ -1,0 +1,64 @@
+{
+  "info": {
+    "name": "My Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Login",
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:8585/api/v1/users/login",
+        "description": ""
+      }
+    },
+    {
+      "name": "GetColumnProfile",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8585/api/v1/tables/local_postgres.openmetadata_db.public.table_entity.json/columnProfile?startTs=1776400000000&endTs=1776500000000",
+        "description": ""
+      }
+    },
+    {
+      "name": "GetTable",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8585/api/v1/tables/name/local_postgres.openmetadata_db.public.table_entity?fields=columns,customMetrics",
+        "description": ""
+      }
+    },
+    {
+      "name": "GetSampleData",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8585/api/v1/tables/name/local_postgres.openmetadata_db.public.table_entity?fields=sampleData&",
+        "description": ""
+      }
+    },
+    {
+      "name": "PutcustomMetric",
+      "request": {
+        "method": "PUT",
+        "url": "http://localhost:8585/api/v1/tables/c2ee1a76-2566-4683-bfe7-151ccf4b170a/customMetric",
+        "description": ""
+      }
+    },
+    {
+      "name": "GettableProfile",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8585/api/v1/tables/local_postgres.openmetadata_db.public.table_entity/tableProfile/latest?",
+        "description": ""
+      }
+    },
+    {
+      "name": "PushtableProfile",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8585/api/v1/tables/{tableId}/tableProfile",
+        "description": ""
+      }
+    }
+  ]
+}

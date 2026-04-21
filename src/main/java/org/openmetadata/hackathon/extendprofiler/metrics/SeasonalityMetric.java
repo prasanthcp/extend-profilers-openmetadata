@@ -6,8 +6,6 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.naming.spi.DirStateFactory.Result;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -99,12 +97,12 @@ public class SeasonalityMetric implements SqlAwareMetric {
             "SELECT %s FROM %s ORDER BY %s",
             columnName, tableName, tsColumn
         );
-        try(Statement stmt = conn.createStatement()) {
+        try(Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery(sql)) {
 
-            ResultSet rs = stmt.executeQuery(sql);
             List<Double> values = new ArrayList<>();
-            
-            while (rs.next()) 
+
+            while (rs.next())
                 values.add(rs.getDouble(1));
 
             if(values.size() < 4) {

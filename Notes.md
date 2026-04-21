@@ -351,12 +351,34 @@ DELETE http://localhost:8585/api/v1/tables/c2ee1a76-.../customMetric/json/entrop
 ### Known limitations / remaining work
 
 - Scheduling: no built-in scheduler. For timeseries to be useful, run this via cron or integrate with OM's profiler agent schedule.
-- `addCustomMetric` is called every run even if the metric is already registered. Should check existing metrics first or handle idempotently.
 - `ORDER BY RANDOM()` is PostgreSQL-specific. Needs dialect abstraction for MySQL (`RAND()`), Snowflake (`TABLESAMPLE`), etc.
 - No guardrails for huge tables -- COUNT(*) on a billion-row table could be slow. Consider using table statistics or estimated counts.
-- CsvDataReader does not implement the DataSource interface and is only used in tests.
 - Seasonality on random-sampled data (in-memory fallback) is unreliable since ordering is lost.
 - No UI or Java endpoints -- this is a CLI tool only.
+
+
+### HTML report export
+- `HtmlResultWriter` generates a single self-contained HTML file (`output/LatestReport.html`) summarizing all profiled tables.
+- Color-coded metrics: green (healthy), amber (review), red (investigate) based on thresholds per metric type.
+- Human-readable interpretations appear as tooltips on hover (e.g., kurtosis 5.2 -> "Heavy outliers -- investigate extreme values").
+- No external dependencies -- inline CSS, opens in any browser.
+
+### Custom metric idempotency
+- `Profiler.runWith()` now parses existing `customMetrics` from the `fetchTable` response before registering.
+- Metrics already registered in OM are skipped, avoiding redundant PUT calls on repeat runs.
+- Key format: metric name + column name (or table-level sentinel).
+
+### Resolved bugs
+- **OMClient.addCustomMetric** was using POST instead of PUT, causing HTTP 405. Fixed to use PUT and send the metric object directly (not wrapped in `{"customMetric": ...}`).
+- **ValueAgeMetric.computeSql** crashed with NPE when `orderByColumn` was null (no timestamp column found). Now returns null early and falls back to in-memory computation.
+- **SeasonalityMetric.computeSql** had an unclosed ResultSet (resource leak). Fixed to use try-with-resources for both Statement and ResultSet.
+- **SeasonalityMetric** had an unused import (`javax.naming.spi.DirStateFactory.Result`). Removed.
+- **Profiler.java** idempotency check used `"CustomMetrics"` (capital C) but OM API returns `"customMetrics"` (lowercase). Fixed casing.
+- **HtmlResultWriter** tooltip text was not HTML-escaped, causing broken `title` attributes when interpretation text contained special characters. Fixed with `esc()` call.
+
+### Resolved limitations:
+
+- `addCustomMetric` is called every run even if the metric is already registered. Fixed: existing metrics are now detected from the fetchTable response and skipped.
 
 https://docs.open-metadata.org/v1.11.x/api-reference/data-assets/tables/profiler#table-profiler
 
@@ -369,3 +391,4 @@ http://localhost:8585/table/local_postgres.openmetadata_db.public.table_entity/p
 https://docs.open-metadata.org/v1.12.x/how-to-guides/data-quality-observability/profiler/profiler-workflow
 
 https://chatgpt.com/g/g-p-69a9a5cabce88191a9214da4df3ceca1-getting-remote-job/c/69e10716-b6b8-8320-b200-edad6af96baf
+

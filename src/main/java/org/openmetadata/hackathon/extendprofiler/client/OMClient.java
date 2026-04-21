@@ -74,8 +74,13 @@ public class OMClient {
         // dummy expression, as its a mandatory field. The actual value will come from profile payload.
         node.put("expression", "SELECT 0 as " + name); 
 
-        String payload = json.createObjectNode().set("customMetric", node).toString();
-        Request req = buildPost(baseUrl + "/tables/" + tableId + "/customMetric", payload);
+        String payload = node.toString();
+        RequestBody body = RequestBody.create(payload, MediaType.parse("application/json"));
+        Request req = new Request.Builder()
+                .url(baseUrl + "/tables/" + tableId + "/customMetric")
+                .header("Authorization", "Bearer " + authToken)
+                .put(body)
+                .build();
 
         try (Response resp = http.newCall(req).execute()) {
             checkResp(resp, "addCustomMetric(" + name + ")");

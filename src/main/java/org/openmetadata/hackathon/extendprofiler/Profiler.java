@@ -49,13 +49,24 @@ public class Profiler {
         Connection conn = src.getConnection();
         String tblName = src.getTableName();
 
+        Set<String> existingMetrics = new HashSet<>();
+        JsonNode customMetrics = tableJson.get("customMetrics");
+        if (customMetrics != null && customMetrics.isArray()) {
+            for (JsonNode cm : customMetrics) {
+                existingMetrics.add(cm.get("name").asText() + (cm.has("columnName") ? "_" + cm.get("columnName").asText() : ""));
+            }
+        }
+
+
         // --- table-level metrics ---
         List<MetricResult> tableLvl = new ArrayList<>();
         for (Metric m : registry.forTable()) {
             List<String> allVals = src.getAllValues();
             Double val = m.compute(allVals);
             if (val != null) {
-                client.addCustomMetric(tableId, m.getName(), m.getDescription(), null);
+                if(!existingMetrics.contains(m.getName())) {
+                    client.addCustomMetric(tableId, m.getName(), m.getDescription(), null); 
+                }
                 tableLvl.add(new MetricResult(m.getName(), val));
                 result.addTableMetric(m.getName(), val);
             }
@@ -88,7 +99,10 @@ public class Profiler {
                 }
                 if (val != null) {
                     String qualifiedName = m.getName() + "_" + ci.getName();
-                    client.addCustomMetric(tableId, qualifiedName, m.getDescription(), ci.getName());
+                    
+                    if(!existingMetrics.contains(qualifiedName)) 
+                        client.addCustomMetric(tableId, qualifiedName, m.getDescription(), ci.getName());
+                    
                     results.add(new MetricResult(qualifiedName, val));
                     result.addColumnMetric(ci.getName(), m.getName(), val);
                 }
