@@ -4,109 +4,104 @@
 
 - **JDK:** 21+ recommended. This repo is tested with **Temurin 25** as the JVM running Gradle; the **Gradle Wrapper uses 9.1.0** (needed so Gradle itself runs on Java 25). Compiled bytecode targets **Java 21** (`release = 21`).
 - **Commands:** from this directory run `./gradlew test`, `./gradlew run`, or `./gradlew build`.
-- **No global Gradle install required** — use `./gradlew` only.
-- **If `test` seems broken or prints nothing useful:** run `./gradlew doctor` then `./gradlew clean test --rerun-tasks --info` and check the end of the log for `BUILD SUCCESSFUL` / failures.
+- **No global Gradle install required** -- use `./gradlew` only.
+- **If `test` seems broken or prints nothing useful:** run `./gradlew clean test --rerun-tasks --info` and check the end of the log for `BUILD SUCCESSFUL` / failures.
 - **Corporate / shim `java` (e.g. Salesforce banner):** point Gradle at a real JDK: `export JAVA_HOME=$(/usr/libexec/java_home -v 21)` (or `-v 25`) then run `./gradlew test` again.
 - **`Permission denied` on `./gradlew`:** `chmod +x gradlew`
 
-# Objectives: 
+## Objectives
 - Implementations of new metrics as Metric classes (entropy, kurtosis, value-age, time-series seasonality detectors)
-- exporters to emit metrics to JSON/CSV and OpenMetadata profile payloads
-
-# Starter tasks
-- implement entropy and relative-entropy (per-column) and add tests against known distributions
-- add kurtosis and non-parametric skew metrics with numerical stability checks
-- value-age metric: compute median age of values (timestamp-bearing columns)
-- seasonal/detection metric for time-series columns (autocorrelation or seasonal decomposition)
-- integrate metrics into MetricRegistry and ensure Profiler picks them up via config
+- Exporters to emit metrics to JSON/CSV and OpenMetadata profile payloads
+- Multi-dialect JDBC support (PostgreSQL, MySQL, etc.)
+- Auto-discovery of JDBC connections from OM database service API
+- Schema-level wildcard profiling
+- Self-sufficient basic stats (no dependency on OM profiler having run)
 
 Hackathon Idea https://github.com/open-metadata/OpenMetadata/issues/26662
 
-# Architecture:
+## Architecture
 
-Ingest: connects to a database (e.g., PostgreSQL/Snowflake) using JDBC.
-Compute: Java library like Apache Commons Math to calculate the "Advanced Metrics" (Entropy, Kurtosis, etc.)
-Export: Provide a REST endpoint or UI button to download these results as CSV/JSON.
-Sync: Use the OpenMetadata Java client to push these values back to the platform.
+```
+                    +-----------------+
+                    |  Config (JSON)  |
+                    +--------+--------+
+                             |
+                             v
++------------+     +-------------------+     +------------------+
+|   JDBC     |---->|                   |---->| OpenMetadata API |
+| DataSource |     |   ProfileRunner   |     |  (push profiles) |
++------------+     |                   |     +------------------+
+                   |  Profiler engine  |
++------------+     |  + MetricRegistry |     +------------------+
+| OM Sample  |---->|  + QueryCapable   |---->| JSON/CSV/HTML    |
+| DataSource |     +-------------------+     +------------------+
++------------+           |
+                         v
+               +-------------------+
+               | ConnectionResolver|
+               | (auto-discovery)  |
+               +-------------------+
+```
 
-# Scope for MVP:
-- Support JDBC Connection
-- Accept File-based universal path to make the system connector-agnostic
-- consume OM's stored sample data via APIs when available for some supported advanced stats calculation
-- push the custom metrics to OM through tableprofile APIs
-- pick a schema + auth for final hackathon demo
+**Ingest** -- connects to database via JDBC (random sample + COUNT(*) for real row count), or auto-discovers JDBC from OM's database service API, or uses OM's stored sample data through the API. JDBC connections are managed with try-with-resources and closed after each table.
 
+**Compute** -- runs each applicable metric against the column data. Metric applicability is driven by column type (numeric, string, timestamp) through the `MetricRegistry`. Metrics that implement `SqlAwareMetric` (Value Age) prefer direct SQL computation when a JDBC connection is available, falling back to in-memory computation otherwise. Basic column stats (nullCount, uniqueCount, min, max, mean) are computed independently via SQL aggregates or in-memory.
 
-Where is AI used ?
-- Download and set up the required gradle, java's supported versions, dependencies like Apache commons
-- Generating Test files
-- Understanding OpenMetadata architecture and flows
+**Sync** -- registers custom metric definitions in OM (required for the UI to display them), then pushes computed values via the table profile API. Existing metric definitions are detected and skipped to avoid redundant API calls.
 
+**Export** -- writes results to per-table directories with timestamped files and a `latest.json`/`latest.csv` for stable consumer access. Generates a single `LatestReport.html` summarizing all profiled tables with collapsible cards, color-coded metrics, health scores, and human-readable interpretations.
 
+## Project Structure
 
-
-┌─────────────────────────────────────────────────────────────────────┐
-│                         Docker Network (app_net)                    │
-│                                                                     │
-│  ┌──────────┐    ┌─────────────────────┐    ┌───────────────────┐   │
-│  │  MySQL   │◄──►│  OM Server (:8585)  │◄──►│ Elasticsearch     │   │
-│  │  (:3306) │    │  (API + UI)         │    │ (:9200)           │   │
-│  └──────────┘    └─────────┬───────────┘    └───────────────────┘   │
-│       ▲                    │                                        │
-│       │                    │ REST calls                             │
-│       │                    ▼                                        │
-│       │          ┌─────────────────────┐                            │
-│       └──────────│  Airflow/Ingestion  │                            │
-│                  │  (:8080)            │                            │
-│                  └─────────────────────┘                            │
-└─────────────────────────────────────────────────────────────────────┘
-
-
-Relavant API's:
-------------------
-Call: GET 
-
-URL: http://localhost:8585/api/v1/tables/sample_data.ecommerce_db.shopify.dim_address/tableProfile?startTs=1775865600000&endTs=1776556799999
-
-Response:  {
-    "data": [
-        {
-            "timestamp": 1776336700955,
-            "profileSampleType": "PERCENTAGE",
-            "columnCount": 12.0,
-            "rowCount": 14567.0,
-            "sizeInByte": 16890.0,
-            "createDateTime": "2023-07-24T07:00:48.000000Z",
-            "customMetrics": [
-                {
-                    "name": "CountOfUSAddress",
-                    "value": 15467.0
-                },
-                {
-                    "name": "CountOfFRAddress",
-                    "value": 1467.0
-                }
-            ]
-        },
-        {
-            "timestamp": 1776333793040,
-            "profileSampleType": "PERCENTAGE",
-            "columnCount": 12.0,...
-
-
-# OpenMetadata API Reference (for custom profiler integration)
+```
+src/main/java/org/openmetadata/hackathon/extendprofiler/
+  ProfileRunner.java        -- CLI entry point, config parsing, wildcard expansion, 3-tier fallback
+  Profiler.java             -- core engine: runs metrics, computes basic stats, builds OM payloads
+  client/
+    OMClient.java           -- OM REST API wrapper (auth, fetch, push, listTables, fetchDatabaseService)
+    OMClientException.java  -- custom exception with HTTP status codes
+    ConnectionResolver.java -- resolves OM database service JSON into JDBC connection details
+  data/
+    DataSource.java         -- interface for any data source
+    JdbcDataSource.java     -- JDBC source: random sampling, COUNT(*), implements QueryCapable
+    SampleDataSource.java   -- backed by OM's stored sample data
+    QueryCapable.java       -- interface: executeQuery(), getQueryTarget(), getDialect()
+    SqlDialect.java         -- enum abstracting DB-specific SQL (POSTGRESQL, MYSQL, GENERIC)
+    CsvDataReader.java      -- CSV reader (test utility)
+    ColumnInfo.java         -- column name + type pair
+  metrics/
+    Metric.java             -- interface: getName(), getDescription(), compute()
+    SqlAwareMetric.java     -- extends Metric with computeNative(QueryCapable, ...) for SQL-native computation
+    MetricRegistry.java     -- registers metrics with their applicable column types
+    EntropyMetric.java      -- Shannon entropy
+    RelativeEntropyMetric.java -- KL divergence vs uniform
+    KurtosisMetric.java     -- distribution tail heaviness (Apache Commons Math)
+    SkewnessMetric.java     -- distribution asymmetry (Apache Commons Math)
+    SeasonalityMetric.java  -- autocorrelation-based period detection
+    ValueAgeMetric.java     -- median staleness of timestamp values (dialect-aware SQL)
+  export/
+    ProfileResult.java      -- holds table + column metrics + basic stats + omUrl
+    JsonResultWriter.java   -- JSON export
+    CsvResultWriter.java    -- CSV export
+    HtmlResultWriter.java   -- HTML report: collapsible cards, health scores, color-coded metrics
+src/main/resources/
+  logback.xml               -- logging config (INFO default, DEBUG for verbose)
+```
 
 ## Metric Applicability by Column Type
 
 | Metric | Numeric | String/Categorical | Timestamp | Min Data Points |
 |--------|---------|-------------------|-----------|-----------------|
 | Entropy | yes | yes | yes | 1 |
+| Relative Entropy | yes | yes | yes | 1 |
 | Kurtosis | yes | no | no | 4 |
 | Skewness | yes | no | no | 3 |
 | Seasonality | yes | no | no | 4 |
 | ValueAge | no | no | yes | 1 |
 
-## Call Sequence
+## OpenMetadata API Reference
+
+### Call Sequence
 
 ```
 1. POST /api/v1/users/login                                         -> get JWT token
@@ -116,7 +111,7 @@ Response:  {
 5. PUT  /api/v1/tables/{id}/tableProfile                             -> push all results
 ```
 
-## API 1: Login
+### API 1: Login
 
 ```
 POST http://localhost:8585/api/v1/users/login
@@ -138,7 +133,7 @@ Response:
 }
 ```
 
-## API 2: Get Table by FQN (columns + sample data + existing custom metrics)
+### API 2: Get Table by FQN
 
 ```
 GET http://localhost:8585/api/v1/tables/name/{fqn}?fields=columns,sampleData,customMetrics
@@ -157,25 +152,18 @@ Response:
   ],
   "sampleData": {
     "columns": ["id", "json", "updatedAt"],
-    "rows": [
-      ["1", "{\"key\":\"val\"}", "1776336700955"],
-      ["2", "{\"key\":\"val2\"}", "1776336800000"]
-    ]
+    "rows": [["1", "{...}", "1776336700955"]]
   },
   "customMetrics": []
 }
 ```
 
-## API 3: Register Custom Metric Definition (once per metric per column)
+### API 3: Register Custom Metric Definition
 
 The UI will NOT display custom metric values unless the definition is registered first.
 
 ```
 PUT http://localhost:8585/api/v1/tables/{tableId}/customMetric
-
-Headers:
-  Authorization: Bearer <accessToken>
-  Content-Type: application/json
 
 Body (column-level):
 {
@@ -191,35 +179,22 @@ Body (table-level, omit columnName):
   "description": "Shannon entropy - randomness/disorder",
   "expression": "SELECT 0 as entropy"
 }
-
-Response: full table entity JSON (confirms registration)
 ```
 
-Metrics to register:
-
-| name | description |
-|------|-------------|
-| entropy | Shannon entropy - randomness/disorder in data |
-| kurtosis | Tail heaviness of distribution - outlier indicator |
-| skewness | Asymmetry of distribution |
-| seasonality | Dominant repeating period via autocorrelation |
-| valueAge | Median age (hours) of timestamp values - staleness |
-
-## API 4: Push Table + Column Profiles with Custom Metric Values
+### API 4: Push Table + Column Profiles
 
 ```
 PUT http://localhost:8585/api/v1/tables/{tableId}/tableProfile
-
-Headers:
-  Authorization: Bearer <accessToken>
-  Content-Type: application/json
 
 Body:
 {
   "tableProfile": {
     "timestamp": 1776494509000,
     "rowCount": 120,
-    "columnCount": 5
+    "columnCount": 5,
+    "profileSample": 500,
+    "profileSampleType": "ROWS",
+    "customMetrics": [{"name": "entropy", "value": 4.21}]
   },
   "columnProfile": [
     {
@@ -230,69 +205,9 @@ Body:
       "nullProportion": 0.0,
       "uniqueCount": 120,
       "uniqueProportion": 1.0,
-      "customMetrics": [
-        {"name": "entropy", "value": 4.21},
-        {"name": "kurtosis", "value": 2.15},
-        {"name": "skewness", "value": 0.67},
-        {"name": "seasonality", "value": 0.0}
-      ]
-    },
-    {
-      "name": "city",
-      "timestamp": 1776494509000,
-      "valuesCount": 120,
-      "nullCount": 5,
-      "nullProportion": 0.04,
-      "customMetrics": [
-        {"name": "entropy", "value": 3.42}
-      ]
-    },
-    {
-      "name": "created_at",
-      "timestamp": 1776494509000,
-      "valuesCount": 120,
-      "nullCount": 0,
-      "nullProportion": 0.0,
-      "customMetrics": [
-        {"name": "entropy", "value": 2.89},
-        {"name": "valueAge", "value": 456.7}
-      ]
-    }
-  ]
-}
-
-Response: full table entity JSON with profile + column profiles
-```
-
-## API 5: Get Latest Profile (verify pushed data)
-
-```
-GET http://localhost:8585/api/v1/tables/{fqn}/tableProfile/latest
-
-Headers:
-  Authorization: Bearer <accessToken>
-
-Response: full table with profile + column profiles + customMetrics
-```
-
-## API 6: Get Column Profile Time-Series
-
-```
-GET http://localhost:8585/api/v1/tables/{column_fqn}/columnProfile?startTs={epoch_ms}&endTs={epoch_ms}
-
-Headers:
-  Authorization: Bearer <accessToken>
-
-Example:
-GET http://localhost:8585/api/v1/tables/local_postgres.openmetadata_db.public.table_entity.json/columnProfile?startTs=1776400000000&endTs=1776500000000
-
-Response:
-{
-  "data": [
-    {
-      "name": "json",
-      "timestamp": 1776494509000,
-      "valuesCount": 120.0,
+      "min": 1,
+      "max": 120,
+      "mean": 60.5,
       "customMetrics": [
         {"name": "entropy", "value": 4.21},
         {"name": "kurtosis", "value": 2.15}
@@ -302,96 +217,183 @@ Response:
 }
 ```
 
-## API 7: Delete a Custom Metric (cleanup)
+### API 5: Get Latest Profile
+
+```
+GET http://localhost:8585/api/v1/tables/{fqn}/tableProfile/latest
+```
+
+### API 6: Get Database Service (for auto-discovery)
+
+```
+GET http://localhost:8585/api/v1/services/databaseServices/name/{serviceName}
+
+Response includes connection.config with hostPort, username, password, database, serviceType.
+ConnectionResolver maps serviceType -> JDBC URL prefix.
+```
+
+### API 7: List Tables in Schema (for wildcard)
+
+```
+GET http://localhost:8585/api/v1/tables?databaseSchema={schemaFqn}&limit=100&after={cursor}
+
+Paginated. Returns fullyQualifiedName for each table.
+```
+
+### API 8: Delete a Custom Metric
 
 ```
 DELETE http://localhost:8585/api/v1/tables/{tableId}/customMetric/{columnName}/{metricName}
-
-Headers:
-  Authorization: Bearer <accessToken>
-
-Example:
-DELETE http://localhost:8585/api/v1/tables/c2ee1a76-.../customMetric/json/entropy
 ```
 
-## What's been done (developer notes)
+## OM Docker Architecture
 
-### Sampling strategy
-- JdbcDataSource uses `ORDER BY RANDOM() LIMIT N` instead of plain `LIMIT N` to avoid insertion-order bias.
-- `SELECT COUNT(*)` runs first to get the real row count; the sample size is then reported via `profileSample`/`profileSampleType` in the OM payload.
-- Configurable as fixed row count (`"sampleType": "ROWS"`) or percentage (`"sampleType": "PERCENTAGE"`). Percentage is converted to an effective row limit using the COUNT(*) result.
-- Note: `ORDER BY RANDOM()` is PostgreSQL syntax. For other databases (MySQL, Snowflake, etc.), the query would need to be adapted (e.g., `ORDER BY RAND()`, `TABLESAMPLE`).
+```
++-----------------------------------------------------------------+
+|                     Docker Network (app_net)                      |
+|                                                                   |
+|  +----------+    +---------------------+    +------------------+  |
+|  |  MySQL   |<-->|  OM Server (:8585)  |<-->| Elasticsearch    |  |
+|  |  (:3306) |    |  (API + UI)         |    | (:9200)          |  |
+|  +----------+    +---------+-----------+    +------------------+  |
+|       ^                    |                                      |
+|       |                    | REST calls                           |
+|       |                    v                                      |
+|       |          +---------------------+                          |
+|       +----------|  Airflow/Ingestion  |                          |
+|                  |  (:8080)            |                          |
+|                  +---------------------+                          |
++-----------------------------------------------------------------+
+```
 
-### SQL-native metrics (SqlAwareMetric interface)
-- Metrics that benefit from exact results or special ordering can implement `SqlAwareMetric` instead of plain `Metric`.
-- `SqlAwareMetric.computeSql(Connection, tableName, columnName, orderByColumn)` is called when JDBC is available. If it returns null, the Profiler falls back to `compute()` on the in-memory sample.
-- **ValueAgeMetric** uses SQL to compute `EXTRACT(EPOCH FROM (NOW() - col)) / 3600` on the full table -- exact median, no sampling, no string parsing.
-- **SeasonalityMetric** uses SQL to fetch data `ORDER BY <timestampColumn>` since autocorrelation requires time-ordered data. The timestamp column is detected from OM's column metadata (not JDBC metadata). If no timestamp column exists, falls back to in-memory.
+## Developer Notes
 
-### Connection management
-- JdbcDataSource implements `AutoCloseable`. ProfileRunner uses try-with-resources so the JDBC connection is closed after each table is profiled.
-- All SQL-native metrics reuse the same connection from `DataSource.getConnection()` -- no new connections created per metric.
+### Multi-Dialect JDBC (SqlDialect)
 
-### Data input fallback
-- If a table config entry has `jdbcUrl`, the JDBC path is used. If not, the profiler falls back to OM's sample data via the table API.
-- SampleDataSource inherits default implementations from the DataSource interface -- no special handling needed.
+- `SqlDialect` enum: `POSTGRESQL`, `MYSQL`, `GENERIC` (GENERIC uses PostgreSQL syntax as fallback)
+- Each dialect overrides: `randomSampleQuery()`, `timestampAgeHoursSql()`, `epochAgeHoursSql()`, `stddevFunction()`
+- Auto-detected from JDBC URL prefix via `SqlDialect.fromJdbcUrl(String)`
+- POSTGRESQL: `ORDER BY RANDOM()`, `EXTRACT(EPOCH FROM ...)`, `STDDEV_SAMP`
+- MYSQL: `ORDER BY RAND()`, `TIMESTAMPDIFF(SECOND,...)`, `UNIX_TIMESTAMP()`, `STDDEV_SAMP`
+- Basic stats SQL (COUNT, MIN, MAX, AVG, COUNT DISTINCT) is standard SQL -- no dialect needed
 
-### Output structure
-- Each table gets its own directory under `outputDir`: `output/<table_fqn>/`
-- Each run writes timestamped files (e.g., `2026-04-19T213345.json`) plus overwrites `latest.json` and `latest.csv` for stable consumer access.
+### QueryCapable Interface
 
-### Metric descriptions
-- Each metric's `getDescription()` includes practical ranges and actionable guidance (e.g., "Above 5 = heavy outliers, investigate extreme values").
-- These descriptions flow to OM via `addCustomMetric` and appear as tooltips in the Profiler tab UI.
+- Decouples metrics from raw `java.sql.Connection`
+- `executeQuery(String sql)` -> `List<Map<String, String>>`
+- `getQueryTarget()` -> table name, `getDialect()` -> SqlDialect
+- JdbcDataSource implements it; SampleDataSource does not (falls back to in-memory)
+- `SqlAwareMetric.computeNative(QueryCapable, columnName, colType)` replaces old `computeSql(Connection, ...)`
 
-### OM timeseries integration
-- Each `PUT /tables/{id}/tableProfile` call appends a new timeseries entry in OM (not a replace). Running the profiler repeatedly builds up history shown as line charts in the OM UI.
-- We don't yet have built-in scheduling -- the profiler is a one-shot CLI tool. For recurring runs, use external scheduling (cron, Airflow, etc.).
+### Auto-Discovery (ConnectionResolver)
 
-### Known limitations / remaining work
+- User provides just FQN in config -- no JDBC URL, credentials, or table name needed
+- `OMClient.fetchDatabaseService(serviceName)` gets connection config from OM
+- `ConnectionResolver.resolve(serviceJson, fqn)` maps serviceType to JDBC URL prefix
+- Supported: postgres, mysql, mariadb, mssql, redshift, snowflake
+- Extracts table name from FQN (4th segment: `service.database.schema.table`)
+- 3-tier fallback: explicit JDBC in config > auto-discover from OM > OM sample data
 
-- Scheduling: no built-in scheduler. For timeseries to be useful, run this via cron or integrate with OM's profiler agent schedule.
-- `ORDER BY RANDOM()` is PostgreSQL-specific. Needs dialect abstraction for MySQL (`RAND()`), Snowflake (`TABLESAMPLE`), etc.
-- No guardrails for huge tables -- COUNT(*) on a billion-row table could be slow. Consider using table statistics or estimated counts.
+### Schema Wildcard Profiling
+
+- Config entry `"fqn": "service.db.schema.*"` expands to all tables in that schema
+- `OMClient.listTables(schemaFqn)` handles pagination via `after` cursor
+- Each discovered table is processed with the same config entry's settings (sampleLimit, sampleType)
+- Progress logged every 25 tables: "Progress: X/Y tables processed"
+
+### Basic Column Stats (Self-Sufficient Profiling)
+
+- Computed in `Profiler.computeBasicStats()` -- SQL path for JDBC, in-memory fallback otherwise
+- SQL path runs on full table (not sample) for accuracy: `COUNT(*)`, `COUNT(col)`, `COUNT(DISTINCT col)`, `MIN`, `MAX`, `AVG`
+- Stored in `ProfileResult.columnBasicStats` and included in OM profile payload
+- Pushed as standard OM fields: `nullCount`, `nullProportion`, `uniqueCount`, `uniqueProportion`, `min`, `max`, `mean`
+- SQL may fail for unsupported types (jsonb, boolean) -- falls back silently to in-memory
+- Basic stats contribute to health score: null proportion >10% and uniqueness <50% count as unhealthy
+
+### HTML Report
+
+- Collapsible table cards using `<details>/<summary>` -- click to expand
+- Health scores: overall (average of all tables) and per-table (based on basic stats + advanced metrics)
+- Color coding: green (good), amber (warn), red (bad), grey (N/A) for all metric values
+- Basic Profile table: nulls, null%, unique, unique%, min, max, mean -- all color-coded
+- Advanced Metrics table: entropy, relative entropy, kurtosis, skewness, seasonality, value age
+- "View in OpenMetadata" link per table -> `{omUrl}/table/{fqn}/profiler/table-profile`
+- Non-numeric min/max/mean (UUIDs, text) shown as "--" (dash)
+- Epoch timestamps (>10 billion) shown as "--" to avoid displaying raw millis
+
+### Sampling Strategy
+
+- JdbcDataSource uses dialect-aware random sampling (`ORDER BY RANDOM()` for PG, `ORDER BY RAND()` for MySQL)
+- `SELECT COUNT(*)` runs first for real row count; sample size reported via `profileSample`/`profileSampleType`
+- Configurable as fixed row count (`"sampleType": "ROWS"`) or percentage (`"sampleType": "PERCENTAGE"`)
+- Percentage converted to effective row limit using COUNT(*) result
+
+### SQL-Native Metrics
+
+- Metrics implementing `SqlAwareMetric` get a `QueryCapable` source with dialect awareness
+- **ValueAgeMetric**: uses `dialect.timestampAgeHoursSql()` / `dialect.epochAgeHoursSql()` for exact median age computation
+- **SeasonalityMetric**: computed from OM profile history (last 90 days), not from SQL -- needs >= 4 profile runs
+
+### Connection Management
+
+- JdbcDataSource implements `AutoCloseable`. ProfileRunner uses try-with-resources.
+- All SQL-native metrics reuse the same connection via `QueryCapable.executeQuery()`
+
+### Custom Metric Idempotency
+
+- Existing `customMetrics` parsed from `fetchTable` response before registering
+- Already-registered metrics skipped, avoiding redundant PUT calls on repeat runs
+
+### Logging
+
+- Logback config at `src/main/resources/logback.xml` (was previously misplaced in `src/main/java/...`)
+- Default level: INFO -- shows login, discovery, progress (every 25 tables), summary
+- DEBUG: shows JDBC connections, metric registration, SQL queries, query failures
+- OkHttp and Jackson loggers set to WARN to suppress library noise
+
+### OM Timeseries Integration
+
+- Each `PUT /tables/{id}/tableProfile` appends a new timeseries entry in OM (not a replace)
+- Running repeatedly builds up history shown as line charts in OM UI
+- No built-in scheduling -- use external scheduling (cron, Airflow, etc.) for recurring runs
+
+## Completed
+
+- [x] Entropy and relative entropy metrics with tests
+- [x] Kurtosis and skewness metrics with numerical stability checks
+- [x] Value-age metric (median staleness of timestamp columns)
+- [x] Seasonality metric via autocorrelation on OM profile history
+- [x] MetricRegistry with column-type-based metric applicability
+- [x] JDBC data source with random sampling and COUNT(*)
+- [x] OM sample data source (API-based fallback)
+- [x] JSON/CSV/HTML export with per-table directories
+- [x] Push custom metrics to OM via tableProfile API
+- [x] Custom metric idempotency (skip already-registered)
+- [x] HTML report with health scores, color coding, interpretations
+- [x] Multi-dialect JDBC (SqlDialect enum: PostgreSQL, MySQL, Generic)
+- [x] QueryCapable interface decoupling metrics from raw Connection
+- [x] Auto-discovery of JDBC connections from OM database service API
+- [x] Schema-level wildcard profiling with pagination
+- [x] Basic column stats (nullCount, uniqueCount, min, max, mean) -- self-sufficient profiling
+- [x] Health score includes basic stats (null proportion + uniqueness)
+- [x] Collapsible table cards in HTML report
+- [x] "View in OpenMetadata" links in HTML report
+- [x] Non-numeric / epoch values filtered from min/max/mean display
+- [x] Logging cleanup -- verbose logs moved to DEBUG, logback.xml placed in correct location
+- [x] MySQL JDBC driver added to build
+
+## Known Limitations / Remaining Work
+
+- No built-in scheduler. For timeseries to be useful, run via cron or integrate with OM's profiler agent schedule.
+- No guardrails for huge tables -- COUNT(*) and ORDER BY RANDOM() on billion-row tables could be slow. Consider estimated counts.
 - Seasonality on random-sampled data (in-memory fallback) is unreliable since ordering is lost.
-- No UI or Java endpoints -- this is a CLI tool only.
+- No UI or Java endpoints -- CLI tool only.
+- Snowflake/Redshift JDBC drivers not included in build (add as needed).
 
+## Reference Links
 
-### HTML report export
-- `HtmlResultWriter` generates a single self-contained HTML file (`output/LatestReport.html`) summarizing all profiled tables.
-- Color-coded metrics: green (healthy), amber (review), red (investigate) based on thresholds per metric type.
-- Human-readable interpretations appear as tooltips on hover (e.g., kurtosis 5.2 -> "Heavy outliers -- investigate extreme values").
-- No external dependencies -- inline CSS, opens in any browser.
-
-### Custom metric idempotency
-- `Profiler.runWith()` now parses existing `customMetrics` from the `fetchTable` response before registering.
-- Metrics already registered in OM are skipped, avoiding redundant PUT calls on repeat runs.
-- Key format: metric name + column name (or table-level sentinel).
-
-### Resolved bugs
-- **OMClient.addCustomMetric** was using POST instead of PUT, causing HTTP 405. Fixed to use PUT and send the metric object directly (not wrapped in `{"customMetric": ...}`).
-- **ValueAgeMetric.computeSql** crashed with NPE when `orderByColumn` was null (no timestamp column found). Now returns null early and falls back to in-memory computation.
-- **SeasonalityMetric.computeSql** had an unclosed ResultSet (resource leak). Fixed to use try-with-resources for both Statement and ResultSet.
-- **SeasonalityMetric** had an unused import (`javax.naming.spi.DirStateFactory.Result`). Removed.
-- **Profiler.java** idempotency check used `"CustomMetrics"` (capital C) but OM API returns `"customMetrics"` (lowercase). Fixed casing.
-- **HtmlResultWriter** tooltip text was not HTML-escaped, causing broken `title` attributes when interpretation text contained special characters. Fixed with `esc()` call.
-- Health check scores in html reports
-- resolving guessing work while calculating metrics
-- identifying real limitations of our tool in all directions
-- can we really support custom connectors ?
-
-### Resolved limitations:
-
-- `addCustomMetric` is called every run even if the metric is already registered. Fixed: existing metrics are now detected from the fetchTable response and skipped.
-
-https://docs.open-metadata.org/v1.11.x/api-reference/data-assets/tables/profiler#table-profiler
-
-https://docs.open-metadata.org/v1.12.x/how-to-guides/data-quality-observability/profiler/metrics
-
-https://github.com/open-metadata/OpenMetadata/blob/main/ingestion/src/metadata/profiler/metrics/registry.py
-
-http://localhost:8585/table/local_postgres.openmetadata_db.public.table_entity/profiler/table-profile
-
-https://docs.open-metadata.org/v1.12.x/how-to-guides/data-quality-observability/profiler/profiler-workflow
-
-https://chatgpt.com/g/g-p-69a9a5cabce88191a9214da4df3ceca1-getting-remote-job/c/69e10716-b6b8-8320-b200-edad6af96baf
+- https://docs.open-metadata.org/v1.11.x/api-reference/data-assets/tables/profiler#table-profiler
+- https://docs.open-metadata.org/v1.12.x/how-to-guides/data-quality-observability/profiler/metrics
+- https://github.com/open-metadata/OpenMetadata/blob/main/ingestion/src/metadata/profiler/metrics/registry.py
+- https://docs.open-metadata.org/v1.12.x/how-to-guides/data-quality-observability/profiler/profiler-workflow
+- http://localhost:8585/table/local_postgres.openmetadata_db.public.table_entity/profiler/table-profile

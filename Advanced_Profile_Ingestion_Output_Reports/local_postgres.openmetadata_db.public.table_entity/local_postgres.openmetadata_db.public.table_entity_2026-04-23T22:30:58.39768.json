@@ -1,10 +1,10 @@
 {
   "table" : "local_postgres.openmetadata_db.public.table_entity",
-  "timestamp" : 1776877735969,
+  "timestamp" : 1776963658255,
   "rowCount" : 517,
   "columnCount" : 9,
   "tableMetrics" : {
-    "entropy" : 8.98098990673818
+    "entropy" : 8.981673119553243
   },
   "columns" : [ {
     "column" : "id",
@@ -23,15 +23,15 @@
     "metrics" : {
       "entropy" : 8.961784284662018,
       "relativeEntropy" : 0.0011117206751736402,
-      "kurtosis" : 0.2868906075124369,
-      "skewness" : 1.287034408678523,
-      "valueAge" : 150.28335569444445
+      "kurtosis" : 0.5389390375312173,
+      "skewness" : 1.3376218058141565,
+      "valueAge" : 174.15065064333334
     }
   }, {
     "column" : "updatedby",
     "metrics" : {
-      "entropy" : 1.235070792948835,
-      "relativeEntropy" : 0.34989170777232115
+      "entropy" : 1.2286940112038625,
+      "relativeEntropy" : 0.35626848951729395
     }
   }, {
     "column" : "deleted",
@@ -48,14 +48,14 @@
   }, {
     "column" : "name",
     "metrics" : {
-      "entropy" : 6.74464715606553,
-      "relativeEntropy" : 1.3160487756219978
+      "entropy" : 6.780750465631636,
+      "relativeEntropy" : 1.296065131419168
     }
   }, {
     "column" : "databaseschemahash",
     "metrics" : {
-      "entropy" : 4.009064166242659,
-      "relativeEntropy" : 0.8978264293658589
+      "entropy" : 3.9848033409420163,
+      "relativeEntropy" : 0.922087254666503
     }
   } ]
 }

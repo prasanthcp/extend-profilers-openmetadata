@@ -1,5 +1,8 @@
 package org.openmetadata.hackathon.extendprofiler.client;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -38,7 +41,7 @@ public class OMClient {
             checkResp(resp, "login");
             JsonNode body = json.readTree(resp.body().string());
             this.authToken = body.get("accessToken").asText();
-            log.info("Logged in as " + email);
+            log.info("Logged in as {}", email);
         }
     }
 
@@ -52,6 +55,44 @@ public class OMClient {
             return json.readTree(resp.body().string());
         }
     }
+
+    public JsonNode fetchDatabaseService(String serviceName) throws Exception {
+        Request req = buildGet(baseUrl + "/services/databaseServices/name/" + serviceName);
+        try (Response resp = http.newCall(req).execute()) {
+            if (!resp.isSuccessful()) {
+                log.warn("Failed to fetch database service {}: {}", serviceName, resp.code());
+                return null;
+            }
+            return json.readTree(resp.body().string());
+        }
+    }
+
+    public List<String> listTables(String schemaFqn) throws Exception {
+    List<String> tables = new ArrayList<>();
+    String after = null;
+    
+    do {
+        String url = baseUrl + "/tables?databaseSchema=" + schemaFqn + "&limit=100&fields=columns";
+        if (after != null) url += "&after=" + after;
+        
+        Request req = buildGet(url);
+        try (Response resp = http.newCall(req).execute()) {
+            if (!resp.isSuccessful()) {
+                log.warn("Failed to list tables for schema {}: {}", schemaFqn, resp.code());
+                return tables;
+            }
+            JsonNode result = json.readTree(resp.body().string());
+            for (JsonNode table : result.get("data")) {
+                tables.add(table.get("fullyQualifiedName").asText());
+            }
+            // check for next page
+            JsonNode paging = result.get("paging");
+            after = (paging != null && paging.has("after")) ? paging.get("after").asText() : null;
+        }
+    } while (after != null);
+    
+    return tables;
+}
 
     // Get existing table profiles from OM
     public JsonNode latestProfile(String fqn) throws Exception {
@@ -95,7 +136,7 @@ public class OMClient {
         try (Response resp = http.newCall(req).execute()) {
             checkResp(resp, "addCustomMetric(" + name + ")");
             String target = (columnName != null) ? columnName : "table-level";
-            log.info("Registered metric " + name + " on " + target);
+            log.debug("Registered metric {} on {}", name, target);
         }
     }
 
@@ -109,7 +150,7 @@ public class OMClient {
 
         try (Response resp = http.newCall(req).execute()) {
             checkResp(resp, "putProfile");
-            log.info("Pushed profile details to OM for table ->" + tableId);
+            log.debug("Pushed profile to OM for table {}", tableId);
         }
     }
 

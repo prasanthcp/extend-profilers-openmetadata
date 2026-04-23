@@ -1,8 +1,5 @@
 package org.openmetadata.hackathon.extendprofiler.metrics;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.time.Duration;
 import java.time.format.DateTimeFormatter;
@@ -10,7 +7,10 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
+import org.openmetadata.hackathon.extendprofiler.data.QueryCapable;
+import org.openmetadata.hackathon.extendprofiler.data.SqlDialect;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,28 +38,34 @@ public class ValueAgeMetric implements SqlAwareMetric {
     }
 
     @Override
-    public Double computeSql(Connection conn, String tableName, String columnName, MetricRegistry.ColType colType) {
+    public Double computeNative(QueryCapable source, String columnName, MetricRegistry.ColType colType) {
         if (colType == MetricRegistry.ColType.TIMESTAMP) {
-            return computeSqlTimestamp(conn, tableName, columnName);
+            return computeSqlTimestamp(source, columnName);
         } else if (colType == MetricRegistry.ColType.NUMERIC) {
-            return computeSqlEpoch(conn, tableName, columnName);
+            return computeSqlEpoch(source, columnName);
         }
         return null;
     }
 
-    private Double computeSqlTimestamp(Connection conn, String tableName, String columnName) {
-        String sql = "SELECT EXTRACT(EPOCH FROM (NOW() - " + columnName + ")) / 3600.0 AS age_hours"
+    private Double computeSqlTimestamp(QueryCapable source, String columnName) {
+        SqlDialect dialect = source.getDialect();
+        String tableName = source.getQueryTarget();
+        String ageExpr = dialect.timestampAgeHoursSql(columnName);
+
+        String sql = "SELECT " + ageExpr + " AS age_hours"
             + " FROM " + tableName
             + " WHERE " + columnName + " IS NOT NULL"
             + " ORDER BY age_hours";
-        try (Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+
+        try {
+            List<Map<String, String>> rows = source.executeQuery(sql);
             List<Double> ages = new ArrayList<>();
-            while (rs.next()) {
-                ages.add(Math.max(rs.getDouble("age_hours"), 0.0));
+            for (Map<String, String> row : rows) {
+                String val = row.get("age_hours");
+                if (val != null) ages.add(Math.max(Double.parseDouble(val), 0.0));
             }
             if (ages.isEmpty()) return null;
-            log.info("ValueAge via SQL (timestamp): {} rows from {}.{}", ages.size(), tableName, columnName);
+            log.debug("ValueAge via SQL (timestamp): {} rows from {}.{}", ages.size(), tableName, columnName);
             return median(ages);
         } catch (Exception e) {
             log.debug("Timestamp SQL failed for {}.{}: {}", tableName, columnName, e.getMessage());
@@ -67,20 +73,28 @@ public class ValueAgeMetric implements SqlAwareMetric {
         }
     }
 
-    private Double computeSqlEpoch(Connection conn, String tableName, String columnName) {
-        String sql = "SELECT (EXTRACT(EPOCH FROM NOW()) * 1000 - " + columnName + ") / 3600000.0 AS age_hours"
+    private Double computeSqlEpoch(QueryCapable source, String columnName) {
+        SqlDialect dialect = source.getDialect();
+        String tableName = source.getQueryTarget();
+        String ageExpr = dialect.epochAgeHoursSql(columnName);
+
+        String sql = "SELECT " + ageExpr + " AS age_hours"
             + " FROM " + tableName
             + " WHERE " + columnName + " IS NOT NULL AND " + columnName + " > 0"
             + " ORDER BY age_hours";
-        try (Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+
+        try {
+            List<Map<String, String>> rows = source.executeQuery(sql);
             List<Double> ages = new ArrayList<>();
-            while (rs.next()) {
-                double h = rs.getDouble("age_hours");
-                if (h >= 0 && h < 1_000_000) ages.add(h);
+            for (Map<String, String> row : rows) {
+                String val = row.get("age_hours");
+                if (val != null) {
+                    double h = Double.parseDouble(val);
+                    if (h >= 0 && h < 1_000_000) ages.add(h);
+                }
             }
             if (ages.isEmpty()) return null;
-            log.info("ValueAge via SQL (epoch): {} rows from {}.{}", ages.size(), tableName, columnName);
+            log.debug("ValueAge via SQL (epoch): {} rows from {}.{}", ages.size(), tableName, columnName);
             return median(ages);
         } catch (Exception e) {
             log.debug("Epoch SQL failed for {}.{}: {}", tableName, columnName, e.getMessage());

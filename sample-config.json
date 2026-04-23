@@ -21,6 +21,14 @@
       "tableName": "entity_relationship",
       "sampleLimit": 50,
       "sampleType": "PERCENTAGE"
+    },
+    {
+      "_comment": "Auto-discover JDBC from OM -- just provide FQN",
+      "fqn": "local_postgres.openmetadata_db.public.installed_apps"
+    },
+    {
+      "_comment": "Wildcard -- profile all tables in schema",
+      "fqn": "local_postgres.openmetadata_db.public.*"
     }
   ]
 }

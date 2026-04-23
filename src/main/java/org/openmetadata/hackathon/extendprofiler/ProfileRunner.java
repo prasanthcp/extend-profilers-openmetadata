@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.openmetadata.hackathon.extendprofiler.client.ConnectionResolver;
 import org.openmetadata.hackathon.extendprofiler.client.OMClient;
 import org.openmetadata.hackathon.extendprofiler.client.OMClientException;
 import org.openmetadata.hackathon.extendprofiler.data.JdbcDataSource;
@@ -58,24 +59,41 @@ public class ProfileRunner {
         List<ProfileResult> results = new ArrayList<>();
         JsonNode tables = config.get("tables");
 
+        // expand wildcard FQNs and collect all entries to process
+        List<TableEntry> entries = new ArrayList<>();
         for (JsonNode entry : tables) {
-
             String fqn = entry.get("fqn").asText();
 
+            if (fqn.endsWith(".*")) {
+                // schema wildcard -- discover all tables
+                String schemaFqn = fqn.substring(0, fqn.length() - 2);
+                log.info("Discovering tables in schema: {}", schemaFqn);
+                List<String> discovered = om.listTables(schemaFqn);
+                log.info("Discovered {} tables in {}", discovered.size(), schemaFqn);
+                for (String tableFqn : discovered) {
+                    entries.add(new TableEntry(tableFqn, entry));
+                }
+            } else {
+                entries.add(new TableEntry(fqn, entry));
+            }
+        }
+
+        int processed = 0;
+        int failed = 0;
+        for (TableEntry te : entries) {
+            String fqn = te.fqn;
+            processed++;
+
             try {
-
                 ProfileResult result = null;
-                    
-                if(entry.has("jdbcUrl") ) {
 
-                    String jdbcUrl = entry.get("jdbcUrl").asText();
-                    String dbUser = entry.get("dbUser").asText();
-                    String dbPass = entry.get("dbPassword").asText();
-                    String tableName = entry.get("tableName").asText();
-                    int limit = entry.has("sampleLimit") ? entry.get("sampleLimit").asInt() : 500;
-                    String sampleType = entry.has("sampleType") ? entry.get("sampleType").asText() : "ROWS";
-
-                    log.info("Profiling: {} (sample: {} {})", fqn, limit, sampleType);
+                if (te.config.has("jdbcUrl")) {
+                    String jdbcUrl = te.config.get("jdbcUrl").asText();
+                    String dbUser = te.config.get("dbUser").asText();
+                    String dbPass = te.config.get("dbPassword").asText();
+                    String tableName = te.config.get("tableName").asText();
+                    int limit = te.config.has("sampleLimit") ? te.config.get("sampleLimit").asInt() : 500;
+                    String sampleType = te.config.has("sampleType") ? te.config.get("sampleType").asText() : "ROWS";
 
                     try (JdbcDataSource jdbc = new JdbcDataSource(jdbcUrl, dbUser, dbPass, tableName, limit, sampleType)) {
                         JsonNode tbl = om.fetchTable(fqn);
@@ -83,36 +101,41 @@ public class ProfileRunner {
                     }
 
                 } else {
-                    
-                    log.info("Profiling: {} using sample data", fqn);
-                    result = profiler.run(fqn);
-
+                    result = tryAutoDiscover(om, profiler, fqn, te.config);
                 }
-                
-                if (result != null) {
 
-                    // create a directory for this table's output
+                if (result == null) {
+                    result = profiler.run(fqn);
+                }
+
+                if (result != null) {
+                    result.setOmUrl(omUrl);
+
                     String safeName = fqn.replaceAll("[^a-zA-Z0-9._-]", "_");
                     String tableDir = outputDir + "/" + safeName;
                     new File(tableDir).mkdirs();
 
-                    // export results
                     String tsFile = tableDir + "/" + safeName + "_" + LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
                     new JsonResultWriter(tsFile + ".json").write(result);
                     new CsvResultWriter(tsFile + ".csv").write(result.getColumnMetrics(), result.allMetricNames());
 
-                    // add latest results for easy consumption
                     new JsonResultWriter(tableDir + "/latest.json").write(result);
                     new CsvResultWriter(tableDir + "/latest.csv").write(result.getColumnMetrics(), result.allMetricNames());
 
                     results.add(result);
-                    log.info("Exported {} -> JSON + CSV", safeName);
+                }
+
+                if (processed % 25 == 0) {
+                    log.info("Progress: {}/{} tables processed ({} profiled so far)",
+                            processed, entries.size(), results.size());
                 }
 
             } catch (OMClientException e) {
-                log.error("API error profiling {}: {}", fqn, e.getMessage());
+                failed++;
+                log.warn("Skipped {} (API error: {})", fqn, e.getMessage());
             } catch (Exception e) {
-                log.error("Failed to profile {}: {}", fqn, e.getMessage(), e);
+                failed++;
+                log.warn("Skipped {} ({})", fqn, e.getMessage());
             }
         }
 
@@ -120,11 +143,54 @@ public class ProfileRunner {
             new HtmlResultWriter(outputDir + "/LatestReport.html").write(results);
         }
 
-        log.info("Done. Profiled {}/{} tables.", results.size(), tables.size());
+        log.info("Done. Profiled {}/{} tables ({} failed).", results.size(), entries.size(), failed);
+    }
+
+    private static ProfileResult tryAutoDiscover(OMClient om, Profiler profiler,
+                                                  String fqn, JsonNode entryConfig) {
+        try {
+            String serviceName = ConnectionResolver.extractServiceName(fqn);
+            if (serviceName == null) return null;
+
+            JsonNode serviceJson = om.fetchDatabaseService(serviceName);
+            if (serviceJson == null) {
+                log.debug("Could not fetch database service '{}' -- will fall back to sample data", serviceName);
+                return null;
+            }
+
+            ConnectionResolver.ResolvedConnection resolved = ConnectionResolver.resolve(serviceJson, fqn);
+            if (resolved == null || resolved.jdbcUrl == null || resolved.tableName == null) {
+                log.debug("Could not resolve JDBC for {} -- will fall back to sample data", fqn);
+                return null;
+            }
+
+            int limit = entryConfig.has("sampleLimit") ? entryConfig.get("sampleLimit").asInt() : 500;
+            String sampleType = entryConfig.has("sampleType") ? entryConfig.get("sampleType").asText() : "ROWS";
+
+            log.debug("Profiling: {} (auto-discovered JDBC: {}, sample: {} {})",
+                    fqn, resolved.jdbcUrl, limit, sampleType);
+
+            try (JdbcDataSource jdbc = new JdbcDataSource(resolved.jdbcUrl, resolved.user,
+                    resolved.password, resolved.tableName, limit, sampleType)) {
+                JsonNode tbl = om.fetchTable(fqn);
+                return profiler.runWith(tbl, jdbc);
+            }
+        } catch (Exception e) {
+            log.debug("Auto-discovery failed for {}: {}", fqn, e.getMessage());
+            return null;
+        }
+    }
+
+    private static class TableEntry {
+        final String fqn;
+        final JsonNode config;
+        TableEntry(String fqn, JsonNode config) {
+            this.fqn = fqn;
+            this.config = config;
+        }
     }
 
     private static void printUsage() {
-        
         log.info("Usage: ProfileRunner <config.json>");
         log.info("Config format:");
         log.info("  {");
@@ -134,14 +200,12 @@ public class ProfileRunner {
         log.info("    \"outputDir\": \"output\",");
         log.info("    \"tables\": [");
         log.info("      {");
-        log.info("        \"fqn\": \"service.database.schema.table\",");
-        log.info("        \"jdbcUrl\": \"jdbc:postgresql://host:5432/db\",");
-        log.info("        \"dbUser\": \"user\",");
-        log.info("        \"dbPassword\": \"pass\",");
-        log.info("        \"tableName\": \"table\",");
-        log.info("        \"sampleLimit\": 500,");
-        log.info("        \"sampleType\": \"ROWS\"        // ROWS (default) or PERCENTAGE");
-        log.info("      }");
+        log.info("        \"fqn\": \"service.database.schema.table\"");
+        log.info("        // JDBC auto-discovered from OM. Or provide explicit:");
+        log.info("        // \"jdbcUrl\": \"jdbc:postgresql://host:5432/db\",");
+        log.info("        // \"dbUser\": \"user\", \"dbPassword\": \"pass\", \"tableName\": \"table\"");
+        log.info("      },");
+        log.info("      { \"fqn\": \"service.database.schema.*\" }  // wildcard: all tables in schema");
         log.info("    ]");
         log.info("  }");
     }

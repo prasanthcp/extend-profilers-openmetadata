@@ -2,12 +2,14 @@ package org.openmetadata.hackathon.extendprofiler.data;
 
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class JdbcDataSource implements DataSource, AutoCloseable {
+public class JdbcDataSource implements DataSource, QueryCapable, AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(JdbcDataSource.class);
 
@@ -16,6 +18,8 @@ public class JdbcDataSource implements DataSource, AutoCloseable {
     private final int sampleLimit;
     private final String sampleType; // "ROWS" or "PERCENTAGE"
 
+    private final SqlDialect dialect;
+
     private List<ColumnInfo> cachedCols;
     private List<List<String>> cachedRows;
     private int totalRowCount = -1;
@@ -23,11 +27,12 @@ public class JdbcDataSource implements DataSource, AutoCloseable {
     public JdbcDataSource(String jdbcUrl, String user, String password,
                           String tableName, int sampleLimit,
                           String sampleType) throws SQLException {
-        log.info("Connecting to {} (table={}, limit={}, sampleType={})", jdbcUrl, tableName, sampleLimit, sampleType);
+        log.debug("Connecting to {} (table={}, limit={}, sampleType={})", jdbcUrl, tableName, sampleLimit, sampleType);
         this.conn = DriverManager.getConnection(jdbcUrl, user, password);
         this.tableName = tableName;
         this.sampleLimit = sampleLimit;
         this.sampleType = sampleType != null ? sampleType : "ROWS";
+        this.dialect = SqlDialect.fromJdbcUrl(jdbcUrl);
         log.debug("JDBC connection established");
     }
 
@@ -41,6 +46,7 @@ public class JdbcDataSource implements DataSource, AutoCloseable {
         this.tableName = tableName;
         this.sampleLimit = sampleLimit;
         this.sampleType = "ROWS";
+        this.dialect = SqlDialect.GENERIC; // default to GENERIC if not provided
     }
 
     @Override
@@ -135,8 +141,7 @@ public class JdbcDataSource implements DataSource, AutoCloseable {
             }
 
             // random sample
-            String query = "SELECT * FROM " + tableName
-                + " ORDER BY RANDOM() LIMIT " + effectiveLimit;
+            String query  = getDialect().randomSampleQuery(tableName, effectiveLimit);
             try (ResultSet rs = stmt.executeQuery(query)) {
                 ResultSetMetaData meta = rs.getMetaData();
                 int colCount = meta.getColumnCount();
@@ -154,7 +159,7 @@ public class JdbcDataSource implements DataSource, AutoCloseable {
                     cachedRows.add(row);
                 }
             }
-            log.info("Sampled {} / {} rows from {} ({})",
+            log.debug("Sampled {} / {} rows from {} ({})",
                 cachedRows.size(), totalRowCount, tableName, sampleType);
         } catch (SQLException e) {
             log.error("Failed to read table {}: {}", tableName, e.getMessage());
@@ -175,5 +180,40 @@ public class JdbcDataSource implements DataSource, AutoCloseable {
             default:
                 return "VARCHAR";
         }
+    }
+
+    @Override
+    public List<Map<String, String>> executeQuery(String sql) {
+        
+        List<Map<String, String>> results = new ArrayList<>();
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            ResultSetMetaData meta = rs.getMetaData();
+            int colCount = meta.getColumnCount();
+
+            while (rs.next()) {
+                Map<String, String> row = new LinkedHashMap<>();
+                for (int c = 1; c <= colCount; c++) {
+                    String colName = meta.getColumnName(c);
+                    Object val = rs.getObject(c);
+                    row.put(colName, val != null ? val.toString() : null);
+                }
+                results.add(row);
+            }
+        } catch (SQLException e) {
+            log.debug("Query failed: {}", e.getMessage());
+            throw new RuntimeException("Query execution failed", e);
+        }
+        return results;
+    }
+
+    @Override
+    public String getQueryTarget() {
+        return tableName;
+    }
+
+    @Override
+    public SqlDialect getDialect() {
+        return dialect;
     }
 }

@@ -132,15 +132,24 @@ public class HtmlResultWriter {
         double tableScore = computeTableScore(r);
         String tsClass = tableScore >= 80 ? "score-good" : tableScore >= 50 ? "score-warn" : "score-bad";
 
-        w.write("<div class=\"card\">\n");
-        w.write("  <div class=\"card-header\">\n");
+        String omUrl = r.getOmUrl();
+        String fqn = r.getTableFqn();
+
+        w.write("<details class=\"card\">\n");
+        w.write("  <summary class=\"card-header\">\n");
         w.write("    <div>\n");
-        w.write("      <h2>" + esc(r.getTableFqn()) + "</h2>\n");
+        w.write("      <h2>" + esc(fqn) + "</h2>\n");
         w.write("      <p class=\"meta\">" + r.getRowCount() + " rows &middot; "
-                + r.getColumnCount() + " columns &middot; " + ts + "</p>\n");
+                + r.getColumnCount() + " columns &middot; " + ts
+                + " &middot; score: " + (int) tableScore);
+        if (omUrl != null) {
+            w.write(" &middot; <a href=\"" + esc(omUrl) + "/table/" + esc(fqn)
+                    + "/profiler/table-profile\" target=\"_blank\" class=\"om-link\">View in OpenMetadata</a>");
+        }
+        w.write("</p>\n");
         w.write("    </div>\n");
         w.write("    <div class=\"table-score " + tsClass + "\">" + (int) tableScore + "</div>\n");
-        w.write("  </div>\n");
+        w.write("  </summary>\n");
 
         // table-level metrics
         if (!r.getTableMetrics().isEmpty()) {
@@ -156,11 +165,55 @@ public class HtmlResultWriter {
             w.write("  </table>\n");
         }
 
-        // column-level metrics
+        // basic column stats
+        if (!r.getColumnBasicStats().isEmpty()) {
+            w.write("  <h3>Basic Profile</h3>\n");
+            w.write("  <table><tr><th>Column</th><th>Nulls</th><th>Null %</th>"
+                    + "<th>Unique</th><th>Unique %</th><th>Min</th><th>Max</th><th>Mean</th></tr>\n");
+
+            for (Map.Entry<String, Map<String, Object>> col : r.getColumnBasicStats().entrySet()) {
+                Map<String, Object> s = col.getValue();
+                String colName = col.getKey();
+                String colDisplay = esc(colName);
+
+                int nullCount = s.containsKey("nullCount") ? ((Number) s.get("nullCount")).intValue() : 0;
+                double nullProp = s.containsKey("nullProportion") ? ((Number) s.get("nullProportion")).doubleValue() : 0;
+                int uniqueCount = s.containsKey("uniqueCount") ? ((Number) s.get("uniqueCount")).intValue() : 0;
+                double uniqueProp = s.containsKey("uniqueProportion") ? ((Number) s.get("uniqueProportion")).doubleValue() : 0;
+
+                String nullCls = nullProp > 0.5 ? "bad" : nullProp > 0.1 ? "warn" : "good";
+                String uniqCls = uniqueProp >= 0.9 ? "good" : uniqueProp >= 0.5 ? "neutral" : "warn";
+
+                String minStr = fmtObj(s.get("min"));
+                String maxStr = fmtObj(s.get("max"));
+                String meanStr = fmtObj(s.get("mean"));
+                boolean hasMin = !"&mdash;".equals(minStr);
+                boolean hasMax = !"&mdash;".equals(maxStr);
+                boolean hasMean = !"&mdash;".equals(meanStr);
+
+                String minCls = hasMin ? "good" : "na";
+                String maxCls = hasMax ? "good" : "na";
+                String meanCls = hasMean ? "good" : "na";
+
+                w.write("  <tr>");
+                w.write("<td class=\"col-name\">" + colDisplay + "</td>");
+                w.write("<td class=\"" + nullCls + "\">" + nullCount + "</td>");
+                w.write("<td class=\"" + nullCls + "\">" + String.format("%.1f%%", nullProp * 100) + "</td>");
+                w.write("<td class=\"" + uniqCls + "\">" + uniqueCount + "</td>");
+                w.write("<td class=\"" + uniqCls + "\">" + String.format("%.1f%%", uniqueProp * 100) + "</td>");
+                w.write("<td class=\"" + minCls + "\">" + minStr + "</td>");
+                w.write("<td class=\"" + maxCls + "\">" + maxStr + "</td>");
+                w.write("<td class=\"" + meanCls + "\">" + meanStr + "</td>");
+                w.write("</tr>\n");
+            }
+            w.write("  </table>\n");
+        }
+
+        // column-level advanced metrics
         if (!r.getColumnMetrics().isEmpty()) {
             List<String> metricNames = r.allMetricNames();
 
-            w.write("  <h3>Column-level metrics</h3>\n");
+            w.write("  <h3>Advanced Metrics</h3>\n");
             w.write("  <table><tr><th>Column</th>");
             for (String m : metricNames) {
                 w.write("<th>" + esc(m) + "</th>");
@@ -192,7 +245,7 @@ public class HtmlResultWriter {
             w.write("  </table>\n");
         }
 
-        w.write("</div>\n");
+        w.write("</details>\n");
     }
 
     private void writeRefRow(Writer w, String metric, String description,
@@ -219,11 +272,28 @@ public class HtmlResultWriter {
         int total = 0;
         int healthy = 0;
 
+        // basic stats contribute to score
+        for (Map<String, Object> stats : r.getColumnBasicStats().values()) {
+            double nullProp = stats.containsKey("nullProportion")
+                    ? ((Number) stats.get("nullProportion")).doubleValue() : 0;
+            double uniqProp = stats.containsKey("uniqueProportion")
+                    ? ((Number) stats.get("uniqueProportion")).doubleValue() : 0;
+            // null proportion check
+            total++;
+            if (nullProp <= 0.1) healthy++;
+            else if (nullProp <= 0.5) { /* warn — not healthy */ }
+            // uniqueness check
+            total++;
+            if (uniqProp >= 0.5) healthy++;
+        }
+
+        // advanced table-level metrics
         for (Map.Entry<String, Double> e : r.getTableMetrics().entrySet()) {
             total++;
             String rating = rate(e.getKey(), e.getValue());
             if ("good".equals(rating) || "neutral".equals(rating)) healthy++;
         }
+        // advanced column-level metrics
         for (Map<String, Double> colMetrics : r.getColumnMetrics().values()) {
             for (Map.Entry<String, Double> e : colMetrics.entrySet()) {
                 total++;
@@ -320,6 +390,26 @@ public class HtmlResultWriter {
         return String.format("%.4f", value);
     }
 
+    private static String fmtObj(Object value) {
+        if (value == null) return "&mdash;";
+        double d;
+        if (value instanceof Double) {
+            d = (Double) value;
+        } else if (value instanceof Number) {
+            d = ((Number) value).doubleValue();
+        } else {
+            String s = value.toString().trim();
+            if (s.isEmpty()) return "&mdash;";
+            try {
+                d = Double.parseDouble(s);
+            } catch (NumberFormatException e) {
+                return "&mdash;";
+            }
+        }
+        if (Math.abs(d) >= 1e10) return "&mdash;";
+        return fmt(d);
+    }
+
     private static String esc(String s) {
         return s.replace("&", "&amp;").replace("<", "&lt;")
                 .replace(">", "&gt;").replace("\"", "&quot;");
@@ -351,10 +441,15 @@ public class HtmlResultWriter {
             + ".table-score { width: 52px; height: 52px; border-radius: 50%; display: flex;\n"
             + "  align-items: center; justify-content: center; font-size: 1.2em; font-weight: 700; color: #fff; flex-shrink: 0; }\n"
 
-            // cards
+            // cards (collapsible)
             + ".card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.07);\n"
             + "        padding: 24px; margin-bottom: 20px; }\n"
-            + ".card h2 { font-size: 1.1em; word-break: break-all; margin: 0; }\n"
+            + "details.card > summary { cursor: pointer; list-style: none; }\n"
+            + "details.card > summary::-webkit-details-marker { display: none; }\n"
+            + "details.card > summary::before { content: '\\25B6'; display: inline-block; margin-right: 8px;\n"
+            + "  font-size: 0.7em; transition: transform 0.2s; vertical-align: middle; }\n"
+            + "details.card[open] > summary::before { transform: rotate(90deg); }\n"
+            + ".card h2 { font-size: 1.1em; word-break: break-all; margin: 0; display: inline; }\n"
             + ".card-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }\n"
             + ".meta { font-size: 0.85em; color: #636e72; margin: 4px 0 12px; }\n"
             + "h3 { font-size: 0.9em; color: #636e72; margin: 14px 0 6px; }\n"
@@ -401,5 +496,7 @@ public class HtmlResultWriter {
             + ".ref-warn { background: #fdcb6e15; }\n"
             + ".ref-bad  { background: #d6336110; }\n"
 
+            + ".om-link { color: #6c5ce7; text-decoration: none; font-weight: 600; }\n"
+            + ".om-link:hover { text-decoration: underline; }\n"
             + "footer { text-align: center; color: #b2bec3; font-size: 0.8em; padding: 20px 0; }\n";
 }

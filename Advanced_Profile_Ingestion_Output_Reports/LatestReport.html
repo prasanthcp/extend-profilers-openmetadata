@@ -26,7 +26,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   align-items: center; justify-content: center; font-size: 1.2em; font-weight: 700; color: #fff; flex-shrink: 0; }
 .card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.07);
         padding: 24px; margin-bottom: 20px; }
-.card h2 { font-size: 1.1em; word-break: break-all; margin: 0; }
+details.card > summary { cursor: pointer; list-style: none; }
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary::before { content: '\25B6'; display: inline-block; margin-right: 8px;
+  font-size: 0.7em; transition: transform 0.2s; vertical-align: middle; }
+details.card[open] > summary::before { transform: rotate(90deg); }
+.card h2 { font-size: 1.1em; word-break: break-all; margin: 0; display: inline; }
 .card-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .meta { font-size: 0.85em; color: #636e72; margin: 4px 0 12px; }
 h3 { font-size: 0.9em; color: #636e72; margin: 14px 0 6px; }
@@ -60,6 +65,8 @@ td { padding: 7px 10px; border-bottom: 1px solid #f0f0f0; }
 .ref-good { background: #00b89410; }
 .ref-warn { background: #fdcb6e15; }
 .ref-bad  { background: #d6336110; }
+.om-link { color: #6c5ce7; text-decoration: none; font-weight: 600; }
+.om-link:hover { text-decoration: underline; }
 footer { text-align: center; color: #b2bec3; font-size: 0.8em; padding: 20px 0; }
 </style>
 </head>
@@ -76,53 +83,74 @@ footer { text-align: center; color: #b2bec3; font-size: 0.8em; padding: 20px 0; 
     <div class="score-bar"><div class="score-fill score-warn" style="width:70%"></div></div>
   </div>
 </div>
-<div class="card">
-  <div class="card-header">
+<details class="card">
+  <summary class="card-header">
     <div>
       <h2>local_postgres.openmetadata_db.public.table_entity</h2>
-      <p class="meta">517 rows &middot; 9 columns &middot; 2026-04-22 22:38:55</p>
+      <p class="meta">517 rows &middot; 9 columns &middot; 2026-04-23 22:30:58 &middot; score: 77 &middot; <a href="http://localhost:8585/table/local_postgres.openmetadata_db.public.table_entity/profiler/table-profile" target="_blank" class="om-link">View in OpenMetadata</a></p>
     </div>
-    <div class="table-score score-good">80</div>
-  </div>
+    <div class="table-score score-warn">77</div>
+  </summary>
   <h3>Table-level metrics</h3>
   <table><tr><th>Metric</th><th>Value</th><th>Status</th><th>Interpretation</th></tr>
-  <tr><td>entropy</td><td class="good">8.9810</td><td><span class="badge badge-good">Normal</span></td><td class="interp">High diversity — values well spread</td></tr>
+  <tr><td>entropy</td><td class="good">8.9817</td><td><span class="badge badge-good">Normal</span></td><td class="interp">High diversity — values well spread</td></tr>
   </table>
-  <h3>Column-level metrics</h3>
+  <h3>Basic Profile</h3>
+  <table><tr><th>Column</th><th>Nulls</th><th>Null %</th><th>Unique</th><th>Unique %</th><th>Min</th><th>Max</th><th>Mean</th></tr>
+  <tr><td class="col-name">id</td><td class="good">0</td><td class="good">0.0%</td><td class="good">517</td><td class="good">100.0%</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td></tr>
+  <tr><td class="col-name">json</td><td class="good">0</td><td class="good">0.0%</td><td class="good">500</td><td class="good">100.0%</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td></tr>
+  <tr><td class="col-name">updatedat</td><td class="good">0</td><td class="good">0.0%</td><td class="good">516</td><td class="good">99.8%</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td></tr>
+  <tr><td class="col-name">updatedby</td><td class="good">0</td><td class="good">0.0%</td><td class="warn">3</td><td class="warn">0.6%</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td></tr>
+  <tr><td class="col-name">deleted</td><td class="good">0</td><td class="good">0.0%</td><td class="warn">1</td><td class="warn">0.2%</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td></tr>
+  <tr><td class="col-name">fqnhash</td><td class="good">0</td><td class="good">0.0%</td><td class="good">517</td><td class="good">100.0%</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td></tr>
+  <tr><td class="col-name">name</td><td class="good">0</td><td class="good">0.0%</td><td class="neutral">275</td><td class="neutral">53.2%</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td></tr>
+  <tr><td class="col-name">databaseschemahash</td><td class="good">0</td><td class="good">0.0%</td><td class="warn">30</td><td class="warn">5.8%</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td></tr>
+  </table>
+  <h3>Advanced Metrics</h3>
   <table><tr><th>Column</th><th>entropy</th><th>relativeEntropy</th><th>kurtosis</th><th>skewness</th><th>valueAge</th><th>Interpretation</th></tr>
   <tr><td class="col-name">id</td><td class="good">8.9658</td><td class="good">0</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced</span></td></tr>
   <tr><td class="col-name">json</td><td class="good">8.9658</td><td class="good">0</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced</span></td></tr>
-  <tr><td class="col-name">updatedat</td><td class="good">8.9618</td><td class="good">0.0011</td><td class="good">0.2869</td><td class="warn">1.2870</td><td class="good">150.2834</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced; Normal tail behavior; Moderately right-skewed; Data is 150h old</span></td></tr>
-  <tr><td class="col-name">updatedby</td><td class="good">1.2351</td><td class="good">0.3499</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">Moderate diversity; Distribution roughly balanced</span></td></tr>
+  <tr><td class="col-name">updatedat</td><td class="good">8.9618</td><td class="good">0.0011</td><td class="good">0.5389</td><td class="warn">1.3376</td><td class="warn">174.1507</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced; Normal tail behavior; Moderately right-skewed; Data is 174h old — over a week</span></td></tr>
+  <tr><td class="col-name">updatedby</td><td class="good">1.2287</td><td class="good">0.3563</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">Moderate diversity; Distribution roughly balanced</span></td></tr>
   <tr><td class="col-name">deleted</td><td class="warn">0</td><td class="good">0</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">Very low diversity — nearly all values identical; Distribution roughly balanced</span></td></tr>
   <tr><td class="col-name">fqnhash</td><td class="good">8.9658</td><td class="good">0</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced</span></td></tr>
-  <tr><td class="col-name">name</td><td class="good">6.7446</td><td class="warn">1.3160</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Some concentration in certain values</span></td></tr>
-  <tr><td class="col-name">databaseschemahash</td><td class="good">4.0091</td><td class="warn">0.8978</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Some concentration in certain values</span></td></tr>
+  <tr><td class="col-name">name</td><td class="good">6.7808</td><td class="warn">1.2961</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Some concentration in certain values</span></td></tr>
+  <tr><td class="col-name">databaseschemahash</td><td class="good">3.9848</td><td class="warn">0.9221</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Some concentration in certain values</span></td></tr>
   </table>
-</div>
-<div class="card">
-  <div class="card-header">
+</details>
+<details class="card">
+  <summary class="card-header">
     <div>
       <h2>local_postgres.openmetadata_db.public.entity_relationship</h2>
-      <p class="meta">2473 rows &middot; 8 columns &middot; 2026-04-22 22:38:56</p>
+      <p class="meta">2473 rows &middot; 8 columns &middot; 2026-04-23 22:30:58 &middot; score: 62 &middot; <a href="http://localhost:8585/table/local_postgres.openmetadata_db.public.entity_relationship/profiler/table-profile" target="_blank" class="om-link">View in OpenMetadata</a></p>
     </div>
-    <div class="table-score score-warn">61</div>
-  </div>
+    <div class="table-score score-warn">62</div>
+  </summary>
   <h3>Table-level metrics</h3>
   <table><tr><th>Metric</th><th>Value</th><th>Status</th><th>Interpretation</th></tr>
-  <tr><td>entropy</td><td class="good">6.2608</td><td><span class="badge badge-good">Normal</span></td><td class="interp">High diversity — values well spread</td></tr>
+  <tr><td>entropy</td><td class="good">6.2726</td><td><span class="badge badge-good">Normal</span></td><td class="interp">High diversity — values well spread</td></tr>
   </table>
-  <h3>Column-level metrics</h3>
+  <h3>Basic Profile</h3>
+  <table><tr><th>Column</th><th>Nulls</th><th>Null %</th><th>Unique</th><th>Unique %</th><th>Min</th><th>Max</th><th>Mean</th></tr>
+  <tr><td class="col-name">fromid</td><td class="good">0</td><td class="good">0.0%</td><td class="warn">413</td><td class="warn">16.7%</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td></tr>
+  <tr><td class="col-name">toid</td><td class="good">0</td><td class="good">0.0%</td><td class="neutral">1908</td><td class="neutral">77.2%</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td></tr>
+  <tr><td class="col-name">fromentity</td><td class="good">0</td><td class="good">0.0%</td><td class="warn">30</td><td class="warn">1.2%</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td></tr>
+  <tr><td class="col-name">toentity</td><td class="good">0</td><td class="good">0.0%</td><td class="warn">34</td><td class="warn">1.4%</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td></tr>
+  <tr><td class="col-name">relation</td><td class="good">0</td><td class="good">0.0%</td><td class="warn">11</td><td class="warn">0.4%</td><td class="good">0</td><td class="good">15</td><td class="good">3.1771</td></tr>
+  <tr><td class="col-name">json</td><td class="good">0</td><td class="good">0.0%</td><td class="good">11</td><td class="good">100.0%</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td></tr>
+  <tr><td class="col-name">deleted</td><td class="good">0</td><td class="good">0.0%</td><td class="warn">1</td><td class="warn">0.1%</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td></tr>
+  </table>
+  <h3>Advanced Metrics</h3>
   <table><tr><th>Column</th><th>entropy</th><th>relativeEntropy</th><th>kurtosis</th><th>skewness</th><th>valueAge</th><th>Interpretation</th></tr>
-  <tr><td class="col-name">fromid</td><td class="good">5.1881</td><td class="bad">2.8726</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Significant concentration — few values dominate</span></td></tr>
-  <tr><td class="col-name">toid</td><td class="good">9.7725</td><td class="good">0.2773</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced</span></td></tr>
-  <tr><td class="col-name">fromentity</td><td class="good">3.0788</td><td class="warn">1.7792</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Some concentration in certain values</span></td></tr>
-  <tr><td class="col-name">toentity</td><td class="good">3.0445</td><td class="warn">1.9555</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Some concentration in certain values</span></td></tr>
-  <tr><td class="col-name">relation</td><td class="good">2.4127</td><td class="warn">0.9092</td><td class="good">0.1160</td><td class="warn">1.2003</td><td class="bad">493577.1490</td><td><span class="interp">Moderate diversity; Some concentration in certain values; Normal tail behavior; Moderately right-skewed; Stale data (493577h) — pipeline may be broken</span></td></tr>
-  <tr><td class="col-name">json</td><td class="good">3.8074</td><td class="good">0</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced</span></td></tr>
+  <tr><td class="col-name">fromid</td><td class="good">5.3039</td><td class="bad">2.7622</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Significant concentration — few values dominate</span></td></tr>
+  <tr><td class="col-name">toid</td><td class="good">9.6899</td><td class="good">0.3129</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced</span></td></tr>
+  <tr><td class="col-name">fromentity</td><td class="good">3.1420</td><td class="warn">1.7649</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Some concentration in certain values</span></td></tr>
+  <tr><td class="col-name">toentity</td><td class="good">3.0785</td><td class="warn">1.9215</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Some concentration in certain values</span></td></tr>
+  <tr><td class="col-name">relation</td><td class="good">2.4147</td><td class="warn">1.0447</td><td class="good">0.2172</td><td class="warn">1.2328</td><td class="bad">493601.0163</td><td><span class="interp">Moderate diversity; Some concentration in certain values; Normal tail behavior; Moderately right-skewed; Stale data (493601h) — pipeline may be broken</span></td></tr>
+  <tr><td class="col-name">json</td><td class="good">3.4594</td><td class="good">0</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced</span></td></tr>
   <tr><td class="col-name">deleted</td><td class="warn">0</td><td class="good">0</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">Very low diversity — nearly all values identical; Distribution roughly balanced</span></td></tr>
   </table>
-</div>
+</details>
 <div class="card legend-card">
   <h2>Color Legend</h2>
   <div class="legend-row">
