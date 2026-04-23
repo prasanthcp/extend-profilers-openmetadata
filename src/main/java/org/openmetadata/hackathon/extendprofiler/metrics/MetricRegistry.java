@@ -57,7 +57,6 @@ public class MetricRegistry {
 
         Set<ColType> allTypes = EnumSet.allOf(ColType.class);
         Set<ColType> numOnly  = EnumSet.of(ColType.NUMERIC);
-        Set<ColType> tsOnly   = EnumSet.of(ColType.TIMESTAMP);
 
         Set<Level> colLevel      = EnumSet.of(Level.COLUMN);
         Set<Level> bothLevels    = EnumSet.of(Level.TABLE, Level.COLUMN);
@@ -66,12 +65,12 @@ public class MetricRegistry {
         reg.register(new EntropyMetric(),      allTypes, bothLevels);
         // relative entropy (KL divergence vs uniform) — same applicability as entropy
         reg.register(new RelativeEntropyMetric(), allTypes, colLevel);
-        // kurtosis / skewness / seasonality — numeric columns only
+        // kurtosis / skewness — numeric columns only
         reg.register(new KurtosisMetric(),     numOnly, colLevel);
         reg.register(new SkewnessMetric(),     numOnly, colLevel);
-        reg.register(new SeasonalityMetric(),  numOnly, colLevel);
-        // value-age — timestamp columns only
-        reg.register(new ValueAgeMetric(),     tsOnly,  colLevel);
+        // seasonality is computed separately from OM profile history (not registered here)
+        // value-age — timestamp columns and numeric (for epoch-stored timestamps)
+        reg.register(new ValueAgeMetric(),     EnumSet.of(ColType.TIMESTAMP, ColType.NUMERIC), colLevel);
 
         return reg;
     }

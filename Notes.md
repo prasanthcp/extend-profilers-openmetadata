@@ -375,6 +375,10 @@ DELETE http://localhost:8585/api/v1/tables/c2ee1a76-.../customMetric/json/entrop
 - **SeasonalityMetric** had an unused import (`javax.naming.spi.DirStateFactory.Result`). Removed.
 - **Profiler.java** idempotency check used `"CustomMetrics"` (capital C) but OM API returns `"customMetrics"` (lowercase). Fixed casing.
 - **HtmlResultWriter** tooltip text was not HTML-escaped, causing broken `title` attributes when interpretation text contained special characters. Fixed with `esc()` call.
+- Health check scores in html reports
+- resolving guessing work while calculating metrics
+- identifying real limitations of our tool in all directions
+- can we really support custom connectors ?
 
 ### Resolved limitations:
 
@@ -391,4 +395,3 @@ http://localhost:8585/table/local_postgres.openmetadata_db.public.table_entity/p
 https://docs.open-metadata.org/v1.12.x/how-to-guides/data-quality-observability/profiler/profiler-workflow
 
 https://chatgpt.com/g/g-p-69a9a5cabce88191a9214da4df3ceca1-getting-remote-job/c/69e10716-b6b8-8320-b200-edad6af96baf
-

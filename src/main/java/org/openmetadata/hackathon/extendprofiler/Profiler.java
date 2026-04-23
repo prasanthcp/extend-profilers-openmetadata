@@ -72,14 +72,36 @@ public class Profiler {
             }
         }
 
+        // --- seasonality from OM profile history (table-level) ---
+        try {
+            long endTs = System.currentTimeMillis() / 1000;
+            long startTs = endTs - (90L * 24 * 60 * 60); // last 90 days
+            JsonNode history = client.fetchProfileHistory(tableFqn, startTs, endTs);
+            if (history != null && history.isArray() && history.size() >= 4) {
+                double[] rowCounts = new double[history.size()];
+                for (int i = 0; i < history.size(); i++) {
+                    rowCounts[i] = history.get(i).path("rowCount").asDouble(0);
+                }
+                SeasonalityMetric sm = new SeasonalityMetric();
+                Double seasonality = sm.computeFromHistory(rowCounts);
+                if (seasonality != null) {
+                    if (!existingMetrics.contains(sm.getName())) {
+                        client.addCustomMetric(tableId, sm.getName(), sm.getDescription(), null);
+                    }
+                    tableLvl.add(new MetricResult(sm.getName(), seasonality));
+                    result.addTableMetric(sm.getName(), seasonality);
+                }
+                log.info("Seasonality from {} profile runs: {}", history.size(), seasonality);
+            } else {
+                log.info("Not enough profile history for seasonality (need >= 4 runs)");
+            }
+        } catch (Exception e) {
+            log.warn("Could not compute seasonality from OM history: {}", e.getMessage());
+        }
+
         // --- column-level metrics ---
         StringBuilder colJson = new StringBuilder("[");
         boolean first = true;
-
-        String orderByColumn = src.getColumns().stream()
-                .filter(ci -> ci.getDataType().equals("timestamp"))
-                .map(ColumnInfo::getName)
-                .findFirst().orElse(null);    
 
         for (ColumnInfo ci : src.getColumns()) {
             ColType colType = MetricRegistry.classifyOmType(ci.getDataType());
@@ -92,7 +114,7 @@ public class Profiler {
                 Double val = null;
                 // prefer SQL-native computation when connection is available
                 if (m instanceof SqlAwareMetric && conn != null) {
-                    val = ((SqlAwareMetric) m).computeSql(conn, tblName, ci.getName(), orderByColumn);
+                    val = ((SqlAwareMetric) m).computeSql(conn, tblName, ci.getName(), colType);
                 }
                 if (val == null) {
                     val = m.compute(values);

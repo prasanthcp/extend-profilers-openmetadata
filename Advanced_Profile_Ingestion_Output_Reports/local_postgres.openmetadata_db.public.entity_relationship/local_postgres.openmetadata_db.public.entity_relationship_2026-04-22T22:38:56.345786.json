@@ -1,0 +1,55 @@
+{
+  "table" : "local_postgres.openmetadata_db.public.entity_relationship",
+  "timestamp" : 1776877736205,
+  "rowCount" : 2473,
+  "columnCount" : 8,
+  "tableMetrics" : {
+    "entropy" : 6.260790000373168
+  },
+  "columns" : [ {
+    "column" : "fromid",
+    "metrics" : {
+      "entropy" : 5.188050473242826,
+      "relativeEntropy" : 2.8726454584447207
+    }
+  }, {
+    "column" : "toid",
+    "metrics" : {
+      "entropy" : 9.772536844135693,
+      "relativeEntropy" : 0.27731170531478033
+    }
+  }, {
+    "column" : "fromentity",
+    "metrics" : {
+      "entropy" : 3.078755470781278,
+      "relativeEntropy" : 1.779225524346294
+    }
+  }, {
+    "column" : "toentity",
+    "metrics" : {
+      "entropy" : 3.044521585452236,
+      "relativeEntropy" : 1.955478414547763
+    }
+  }, {
+    "column" : "relation",
+    "metrics" : {
+      "entropy" : 2.4127093683049616,
+      "relativeEntropy" : 0.9092187265824008,
+      "kurtosis" : 0.11603115134408659,
+      "skewness" : 1.2002634968906154,
+      "valueAge" : 493577.1489707711
+    }
+  }, {
+    "column" : "json",
+    "metrics" : {
+      "entropy" : 3.8073549220576055,
+      "relativeEntropy" : 0.0
+    }
+  }, {
+    "column" : "deleted",
+    "metrics" : {
+      "entropy" : 0.0,
+      "relativeEntropy" : 0.0
+    }
+  } ]
+}

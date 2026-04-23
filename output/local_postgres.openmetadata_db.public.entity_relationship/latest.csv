@@ -1,8 +1,0 @@
-column,entropy,relativeEntropy,kurtosis,skewness,seasonality
-fromid,5.234886,2.825810,N/A,N/A,N/A
-toid,9.698879,0.306746,N/A,N/A,N/A
-fromentity,3.070323,1.787658,N/A,N/A,N/A
-toentity,3.080453,2.007010,N/A,N/A,N/A
-relation,2.436849,1.022583,0.016171,1.160873,0.000000
-json,3.906891,0.000000,N/A,N/A,N/A
-deleted,0.000000,0.000000,N/A,N/A,N/A

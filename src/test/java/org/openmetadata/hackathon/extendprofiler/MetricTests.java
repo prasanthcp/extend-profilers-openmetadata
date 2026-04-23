@@ -109,24 +109,32 @@ class MetricTests {
         assertEquals(0.0, new SkewnessMetric().compute(List.of("1", "2")));
     }
 
-    // ---- SeasonalityMetric ----
+    // ---- SeasonalityMetric (from OM profile history) ----
 
     @Test
-    void seasonality_randomData_returnsNonNegative() {
-        List<String> data = List.of("1", "5", "2", "8", "3", "7", "4", "9");
-        Double result = new SeasonalityMetric().compute(data);
+    void seasonality_fromHistory_detectsCycle() {
+        double[] series = {100, 200, 100, 200, 100, 200, 100, 200};
+        Double result = new SeasonalityMetric().computeFromHistory(series);
         assertNotNull(result);
-        assertTrue(result >= 0, "Seasonality should be non-negative");
+        assertEquals(2.0, result, "Should detect period-2 cycle");
     }
 
     @Test
-    void seasonality_tooFewValues_returnsZero() {
-        assertEquals(0.0, new SeasonalityMetric().compute(List.of("1", "2", "3")));
+    void seasonality_fromHistory_tooFewPoints_returnsNull() {
+        double[] series = {100, 200, 300};
+        assertNull(new SeasonalityMetric().computeFromHistory(series));
     }
 
     @Test
-    void seasonality_constantValues_returnsZero() {
-        assertEquals(0.0, new SeasonalityMetric().compute(List.of("5", "5", "5", "5", "5", "5")));
+    void seasonality_fromHistory_constant_returnsZero() {
+        double[] series = {50, 50, 50, 50, 50, 50};
+        assertEquals(0.0, new SeasonalityMetric().computeFromHistory(series));
+    }
+
+    @Test
+    void seasonality_compute_returnsNull() {
+        assertNull(new SeasonalityMetric().compute(List.of("1", "2", "3", "4")),
+                "compute() should return null — seasonality uses OM history, not snapshot data");
     }
 
     // ---- ValueAgeMetric ----
@@ -147,28 +155,29 @@ class MetricTests {
     }
 
     @Test
-    void valueAge_unparseable_returnsZero() {
-        assertEquals(0.0, new ValueAgeMetric().compute(List.of("not-a-date", "also-not")));
+    void valueAge_unparseable_returnsNull() {
+        assertNull(new ValueAgeMetric().compute(List.of("not-a-date", "also-not")));
     }
 
     @Test
-    void valueAge_sqlNullOrderBy_returnsNull() {
-        Double result = new ValueAgeMetric().computeSql(null, "table", "col", null);
-        assertNull(result, "Should return null and fall back when orderByColumn is null");
+    void valueAge_epochMillis_notParsedByCompute() {
+        long recentEpoch = System.currentTimeMillis() - 3_600_000L;
+        assertNull(new ValueAgeMetric().compute(List.of(String.valueOf(recentEpoch))),
+                "compute() only handles date strings — epoch values are handled by computeSql with known colType");
     }
 
     // ---- MetricRegistry ----
 
     @Test
-    void registry_numericColumn_getsKurtosisSkewnessSeasonality() {
+    void registry_numericColumn_getsKurtosisSkewnessValueAge() {
         MetricRegistry reg = MetricRegistry.defaults();
         List<Metric> metrics = reg.forColumn(ColType.NUMERIC);
         List<String> names = metrics.stream().map(Metric::getName).toList();
         assertTrue(names.contains("entropy"));
         assertTrue(names.contains("kurtosis"));
         assertTrue(names.contains("skewness"));
-        assertTrue(names.contains("seasonality"));
-        assertFalse(names.contains("valueAge"), "valueAge should not apply to NUMERIC");
+        assertTrue(names.contains("valueAge"), "valueAge applies to NUMERIC for epoch-stored timestamps");
+        assertFalse(names.contains("seasonality"), "seasonality is computed from OM history, not per-column");
     }
 
     @Test
@@ -242,7 +251,7 @@ class MetricTests {
         assertTrue(html.contains("db.schema.table2"), "Should contain second table FQN");
         assertTrue(html.contains("2 tables"), "Should show table count in summary");
         assertTrue(html.contains("class=\"bad\""), "Kurtosis 6.1 should be rated bad");
-        assertTrue(html.contains("class=\"neutral\""), "Entropy should be rated neutral");
+        assertTrue(html.contains("class=\"good\""), "Entropy should be rated good");
 
         System.out.println("HTML report generated at: " + output);
         System.out.println("Size: " + output.toFile().length() + " bytes");

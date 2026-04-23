@@ -38,29 +38,52 @@ public class ValueAgeMetric implements SqlAwareMetric {
     }
 
     @Override
-    public Double computeSql(Connection conn, String tableName, String columnName, String orderByColumn) {
-        if (orderByColumn == null) {
-            log.debug("No timestamp column for SQL valueAge on {}.{}, falling back", tableName, columnName);
-            return null;
+    public Double computeSql(Connection conn, String tableName, String columnName, MetricRegistry.ColType colType) {
+        if (colType == MetricRegistry.ColType.TIMESTAMP) {
+            return computeSqlTimestamp(conn, tableName, columnName);
+        } else if (colType == MetricRegistry.ColType.NUMERIC) {
+            return computeSqlEpoch(conn, tableName, columnName);
         }
+        return null;
+    }
+
+    private Double computeSqlTimestamp(Connection conn, String tableName, String columnName) {
         String sql = "SELECT EXTRACT(EPOCH FROM (NOW() - " + columnName + ")) / 3600.0 AS age_hours"
             + " FROM " + tableName
             + " WHERE " + columnName + " IS NOT NULL"
             + " ORDER BY age_hours";
         try (Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
+            List<Double> ages = new ArrayList<>();
+            while (rs.next()) {
+                ages.add(Math.max(rs.getDouble("age_hours"), 0.0));
+            }
+            if (ages.isEmpty()) return null;
+            log.info("ValueAge via SQL (timestamp): {} rows from {}.{}", ages.size(), tableName, columnName);
+            return median(ages);
+        } catch (Exception e) {
+            log.debug("Timestamp SQL failed for {}.{}: {}", tableName, columnName, e.getMessage());
+            return null;
+        }
+    }
 
+    private Double computeSqlEpoch(Connection conn, String tableName, String columnName) {
+        String sql = "SELECT (EXTRACT(EPOCH FROM NOW()) * 1000 - " + columnName + ") / 3600000.0 AS age_hours"
+            + " FROM " + tableName
+            + " WHERE " + columnName + " IS NOT NULL AND " + columnName + " > 0"
+            + " ORDER BY age_hours";
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
             List<Double> ages = new ArrayList<>();
             while (rs.next()) {
                 double h = rs.getDouble("age_hours");
-                ages.add(Math.max(h, 0.0));
+                if (h >= 0 && h < 1_000_000) ages.add(h);
             }
-            if (ages.isEmpty()) return 0.0;
-            log.info("ValueAge via SQL: {} rows from {}.{}", ages.size(), tableName, columnName);
+            if (ages.isEmpty()) return null;
+            log.info("ValueAge via SQL (epoch): {} rows from {}.{}", ages.size(), tableName, columnName);
             return median(ages);
         } catch (Exception e) {
-            log.warn("SQL valueAge failed for {}.{}, falling back to in-memory: {}",
-                tableName, columnName, e.getMessage());
+            log.debug("Epoch SQL failed for {}.{}: {}", tableName, columnName, e.getMessage());
             return null;
         }
     }
@@ -80,9 +103,9 @@ public class ValueAgeMetric implements SqlAwareMetric {
 
         if (agesInHours.isEmpty()) {
             log.debug("No parseable timestamps found in {} values", columnData.size());
-            return 0.0;
+            return null;
         }
-        log.debug("Computed value age from {}/{} parseable timestamps", agesInHours.size(), columnData.size());
+        log.debug("Computed value age from {}/{} parseable values", agesInHours.size(), columnData.size());
         return median(agesInHours);
     }
 

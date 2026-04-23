@@ -4,5 +4,5 @@ import java.sql.Connection;
 
 public interface SqlAwareMetric extends Metric {
 
-    Double computeSql(Connection conn, String tableName, String columnName, String orderByColumn);
+    Double computeSql(Connection conn, String tableName, String columnName, MetricRegistry.ColType colType);
 }

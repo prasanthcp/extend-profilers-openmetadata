@@ -62,6 +62,16 @@ public class OMClient {
         }
     }
 
+    // Fetch historical profile data points for seasonality analysis
+    public JsonNode fetchProfileHistory(String fqn, long startTs, long endTs) throws Exception {
+        String url = baseUrl + "/tables/" + fqn + "/tableProfile?startTs=" + startTs + "&endTs=" + endTs;
+        Request req = buildGet(url);
+        try (Response resp = http.newCall(req).execute()) {
+            if (!resp.isSuccessful()) return null;
+            return json.readTree(resp.body().string());
+        }
+    }
+
     // Register Custom Metrics before pushing profiles !
     public void addCustomMetric(String tableId, String name, String desc,
                                 String columnName) throws Exception {
