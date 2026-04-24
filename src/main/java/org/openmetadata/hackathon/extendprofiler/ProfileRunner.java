@@ -13,8 +13,6 @@ import org.openmetadata.hackathon.extendprofiler.export.*;
 import org.openmetadata.hackathon.extendprofiler.metrics.MetricRegistry;
 
 import java.io.File;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -110,18 +108,6 @@ public class ProfileRunner {
 
                 if (result != null) {
                     result.setOmUrl(omUrl);
-
-                    String safeName = fqn.replaceAll("[^a-zA-Z0-9._-]", "_");
-                    String tableDir = outputDir + "/" + safeName;
-                    new File(tableDir).mkdirs();
-
-                    String tsFile = tableDir + "/" + safeName + "_" + LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-                    new JsonResultWriter(tsFile + ".json").write(result);
-                    new CsvResultWriter(tsFile + ".csv").write(result.getColumnMetrics(), result.allMetricNames());
-
-                    new JsonResultWriter(tableDir + "/latest.json").write(result);
-                    new CsvResultWriter(tableDir + "/latest.csv").write(result.getColumnMetrics(), result.allMetricNames());
-
                     results.add(result);
                 }
 
@@ -140,6 +126,8 @@ public class ProfileRunner {
         }
 
         if (!results.isEmpty()) {
+            new JsonResultWriter(outputDir + "/results.json").write(results);
+            new CsvResultWriter(outputDir + "/results.csv").write(results);
             new HtmlResultWriter(outputDir + "/LatestReport.html").write(results);
         }
 

@@ -165,50 +165,6 @@ public class HtmlResultWriter {
             w.write("  </table>\n");
         }
 
-        // basic column stats
-        if (!r.getColumnBasicStats().isEmpty()) {
-            w.write("  <h3>Basic Profile</h3>\n");
-            w.write("  <table><tr><th>Column</th><th>Nulls</th><th>Null %</th>"
-                    + "<th>Unique</th><th>Unique %</th><th>Min</th><th>Max</th><th>Mean</th></tr>\n");
-
-            for (Map.Entry<String, Map<String, Object>> col : r.getColumnBasicStats().entrySet()) {
-                Map<String, Object> s = col.getValue();
-                String colName = col.getKey();
-                String colDisplay = esc(colName);
-
-                int nullCount = s.containsKey("nullCount") ? ((Number) s.get("nullCount")).intValue() : 0;
-                double nullProp = s.containsKey("nullProportion") ? ((Number) s.get("nullProportion")).doubleValue() : 0;
-                int uniqueCount = s.containsKey("uniqueCount") ? ((Number) s.get("uniqueCount")).intValue() : 0;
-                double uniqueProp = s.containsKey("uniqueProportion") ? ((Number) s.get("uniqueProportion")).doubleValue() : 0;
-
-                String nullCls = nullProp > 0.5 ? "bad" : nullProp > 0.1 ? "warn" : "good";
-                String uniqCls = uniqueProp >= 0.9 ? "good" : uniqueProp >= 0.5 ? "neutral" : "warn";
-
-                String minStr = fmtObj(s.get("min"));
-                String maxStr = fmtObj(s.get("max"));
-                String meanStr = fmtObj(s.get("mean"));
-                boolean hasMin = !"&mdash;".equals(minStr);
-                boolean hasMax = !"&mdash;".equals(maxStr);
-                boolean hasMean = !"&mdash;".equals(meanStr);
-
-                String minCls = hasMin ? "good" : "na";
-                String maxCls = hasMax ? "good" : "na";
-                String meanCls = hasMean ? "good" : "na";
-
-                w.write("  <tr>");
-                w.write("<td class=\"col-name\">" + colDisplay + "</td>");
-                w.write("<td class=\"" + nullCls + "\">" + nullCount + "</td>");
-                w.write("<td class=\"" + nullCls + "\">" + String.format("%.1f%%", nullProp * 100) + "</td>");
-                w.write("<td class=\"" + uniqCls + "\">" + uniqueCount + "</td>");
-                w.write("<td class=\"" + uniqCls + "\">" + String.format("%.1f%%", uniqueProp * 100) + "</td>");
-                w.write("<td class=\"" + minCls + "\">" + minStr + "</td>");
-                w.write("<td class=\"" + maxCls + "\">" + maxStr + "</td>");
-                w.write("<td class=\"" + meanCls + "\">" + meanStr + "</td>");
-                w.write("</tr>\n");
-            }
-            w.write("  </table>\n");
-        }
-
         // column-level advanced metrics
         if (!r.getColumnMetrics().isEmpty()) {
             List<String> metricNames = r.allMetricNames();
@@ -272,22 +228,7 @@ public class HtmlResultWriter {
         int total = 0;
         int healthy = 0;
 
-        // basic stats contribute to score
-        for (Map<String, Object> stats : r.getColumnBasicStats().values()) {
-            double nullProp = stats.containsKey("nullProportion")
-                    ? ((Number) stats.get("nullProportion")).doubleValue() : 0;
-            double uniqProp = stats.containsKey("uniqueProportion")
-                    ? ((Number) stats.get("uniqueProportion")).doubleValue() : 0;
-            // null proportion check
-            total++;
-            if (nullProp <= 0.1) healthy++;
-            else if (nullProp <= 0.5) { /* warn — not healthy */ }
-            // uniqueness check
-            total++;
-            if (uniqProp >= 0.5) healthy++;
-        }
-
-        // advanced table-level metrics
+        // table-level metrics
         for (Map.Entry<String, Double> e : r.getTableMetrics().entrySet()) {
             total++;
             String rating = rate(e.getKey(), e.getValue());
@@ -387,27 +328,7 @@ public class HtmlResultWriter {
 
     private static String fmt(double value) {
         if (value == (long) value) return Long.toString((long) value);
-        return String.format("%.4f", value);
-    }
-
-    private static String fmtObj(Object value) {
-        if (value == null) return "&mdash;";
-        double d;
-        if (value instanceof Double) {
-            d = (Double) value;
-        } else if (value instanceof Number) {
-            d = ((Number) value).doubleValue();
-        } else {
-            String s = value.toString().trim();
-            if (s.isEmpty()) return "&mdash;";
-            try {
-                d = Double.parseDouble(s);
-            } catch (NumberFormatException e) {
-                return "&mdash;";
-            }
-        }
-        if (Math.abs(d) >= 1e10) return "&mdash;";
-        return fmt(d);
+        return String.format("%.2f", value);
     }
 
     private static String esc(String s) {
@@ -464,7 +385,7 @@ public class HtmlResultWriter {
             + ".good { background: #00b89420; color: #00b894; font-weight: 600; }\n"
             + ".warn { background: #fdcb6e30; color: #e17055; font-weight: 600; }\n"
             + ".bad  { background: #d6336120; color: #d63361; font-weight: 600; }\n"
-            + ".neutral { color: #636e72; }\n"
+            + ".neutral { background: #dfe6e960; color: #636e72; font-weight: 600; }\n"
             + ".na { color: #b2bec3; text-align: center; }\n"
             + ".interp { font-size: 0.85em; color: #636e72; }\n"
 

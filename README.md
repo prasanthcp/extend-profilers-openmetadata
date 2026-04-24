@@ -1,30 +1,43 @@
-# Extend OpenMetadata Profiler with Advanced Statistical Metrics
+# Extend OpenMetadata Profiler
 
-Extends OpenMetadata's profiler with advanced statistical metrics (entropy, kurtosis, skewness, seasonality, value-age) plus basic column stats (nulls, uniques, min, max, mean). Pushes everything as custom metrics into the platform and generates local HTML/JSON/CSV reports.
+Adds 6 advanced statistical metrics (entropy, kurtosis, skewness, seasonality, value-age) to OpenMetadata. Pushes results as custom metrics into OM and generates local HTML/JSON/CSV reports.
 
-Built for [OpenMetadata Hackathon Issue #26662](https://github.com/open-metadata/OpenMetadata/issues/26662).
+Built for [Hackathon Issue #26662](https://github.com/open-metadata/OpenMetadata/issues/26662).
 
 ## Features
 
-- **6 advanced metrics**: entropy, relative entropy, kurtosis, skewness, seasonality, value-age
-- **Basic column stats**: nullCount, uniqueCount, min, max, mean -- computed independently, no dependency on OM's profiler
+- **Advanced metrics**: entropy, relative entropy, kurtosis, skewness, seasonality, value-age
 - **Multi-dialect JDBC**: PostgreSQL, MySQL, MariaDB, MSSQL, Redshift, Snowflake
-- **Auto-discovery**: provide just a table FQN -- JDBC credentials are fetched from OM's database service API automatically
+- **Auto-discovery**: provide just a table FQN, JDBC credentials fetched from OM automatically
 - **Schema wildcards**: `"fqn": "service.db.schema.*"` profiles all tables in a schema
-- **3-tier data access**: explicit JDBC > auto-discovered JDBC > OM sample data fallback
-- **HTML report**: collapsible table cards, color-coded metrics, health scores, "View in OpenMetadata" links
-- **OM integration**: pushes profiles via API so results appear in OM's Profiler tab with timeseries graphs
+- **HTML report**: collapsible tables, color-coded metrics, health scores, OM links
+
+## Prerequisites
+
+- **JDK 21+**
+- **Running OpenMetadata instance** (API access + a database service to profile)
+
+Don't have OM running? Start it with Docker:
+```bash
+git clone https://github.com/open-metadata/OpenMetadata.git
+cd OpenMetadata/docker/development
+docker compose up -d
+```
+OM will be available at `http://localhost:8585` (login: `admin@open-metadata.org` / `admin`).
+
+See [OM Docker quickstart](https://docs.open-metadata.org/quick-start/local-docker-deployment) for details.
 
 ## Quick Start
 
 ```bash
-# Prerequisites: JDK 21+, running OpenMetadata instance
-
 ./gradlew fatJar
+java -jar build/libs/extend-profilers-openmetadata-0.1.0-SNAPSHOT-all.jar sample-config.json
+
+# Or directly:
 ./gradlew run --args='sample-config.json'
 
-# Or via fat JAR:
-java -jar build/libs/extend-profilers-openmetadata-0.1.0-SNAPSHOT-all.jar my-config.json
+# Tests:
+./gradlew test
 ```
 
 ## Config
@@ -42,45 +55,50 @@ Minimal (auto-discovers JDBC from OM):
 }
 ```
 
-Explicit JDBC (when auto-discovery isn't available):
+Explicit JDBC:
 ```json
 {
   "fqn": "local_postgres.openmetadata_db.public.table_entity",
   "jdbcUrl": "jdbc:postgresql://localhost:5432/openmetadata_db",
   "dbUser": "postgres",
   "dbPassword": "password",
-  "tableName": "table_entity",
-  "sampleLimit": 500,
-  "sampleType": "ROWS"
+  "tableName": "table_entity"
 }
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `omUrl` | Yes | OpenMetadata server URL |
-| `omEmail` | Yes | Login email |
-| `omPassword` | Yes | Base64-encoded password |
-| `outputDir` | No | Export directory (default: `output/`) |
-| `tables[].fqn` | Yes | Fully qualified table name, or `schema.*` for wildcard |
-| `tables[].jdbcUrl` | No | Explicit JDBC URL. If omitted, auto-discovers from OM. |
-| `tables[].sampleLimit` | No | Row count (default 500) or percentage |
-| `tables[].sampleType` | No | `ROWS` (default) or `PERCENTAGE` |
+| Field | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `omUrl` | Yes | | OpenMetadata server URL |
+| `omEmail` | Yes | | Login email |
+| `omPassword` | Yes | | Base64-encoded password |
+| `outputDir` | No | `output/` | Export directory |
+| `tables[].fqn` | Yes | | Table FQN, or `schema.*` for wildcard |
+| `tables[].jdbcUrl` | No | auto-discover | JDBC URL |
+| `tables[].sampleLimit` | No | 500 | Row count or percentage |
+| `tables[].sampleType` | No | `ROWS` | `ROWS` or `PERCENTAGE` |
 
 ## Output
 
-- **OM UI**: Profiler tab shows custom metrics + timeseries graphs
-- **HTML**: `output/LatestReport.html` -- collapsible tables, health scores, color-coded metrics
-- **JSON/CSV**: per-table `latest.json`/`latest.csv` + timestamped history
+Each run produces 3 files in the output directory:
 
-## Tests
-
-```bash
-./gradlew test
+```
+output/
+  LatestReport.html   -- visual report with collapsible tables, health scores
+  results.json        -- all tables and metrics in one JSON file
+  results.csv         -- all tables and metrics in one CSV file
 ```
 
-## Logging
+Results are also pushed to OM's Profiler tab (custom metrics + timeseries graphs).
 
-Log level is configured in `src/main/resources/logback.xml`. Default: INFO. Change to DEBUG for verbose output, WARN for minimal.
+## Screenshots
+
+**Custom metrics in OpenMetadata UI** — entropy timeseries built from repeated profiler runs:
+
+![OpenMetadata Profiler UI](misc/Screenshot%201.png)
+
+**HTML report** — collapsible tables, color-coded metrics, health scores:
+
+![HTML Report](misc/screenshot%202.png)
 
 ## Where AI Was Used
 
@@ -88,8 +106,4 @@ Log level is configured in `src/main/resources/logback.xml`. Default: INFO. Chan
 - Test file generation
 - Understanding OpenMetadata architecture and API flows
 
-## Links
-
-- [Hackathon Issue #26662](https://github.com/open-metadata/OpenMetadata/issues/26662)
-- [OM Profiler Metrics Docs](https://docs.open-metadata.org/v1.12.x/how-to-guides/data-quality-observability/profiler/metrics)
-- [OM Table Profiler API](https://docs.open-metadata.org/v1.11.x/api-reference/data-assets/tables/profiler#table-profiler)
+See [Dev Notes.md](Dev%20Notes.md) for architecture, API details, and developer reference.

@@ -2,7 +2,7 @@
   "omUrl": "http://localhost:8585",
   "omEmail": "admin@open-metadata.org",
   "omPassword": "YWRtaW4=",
-  "outputDir": "Advanced_Profile_Ingestion_Output_Reports",
+  "outputDir": "output",
   "tables": [
     {
       "fqn": "local_postgres.openmetadata_db.public.table_entity",

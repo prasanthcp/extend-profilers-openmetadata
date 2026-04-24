@@ -1,8 +1,0 @@
-column,entropy,relativeEntropy,kurtosis,skewness,valueAge
-fromid,5.303917,2.762172,N/A,N/A,N/A
-toid,9.689892,0.312923,N/A,N/A,N/A
-fromentity,3.141965,1.764925,N/A,N/A,N/A
-toentity,3.078538,1.921462,N/A,N/A,N/A
-relation,2.414750,1.044682,0.217179,1.232780,493601.016251
-json,3.459432,0.000000,N/A,N/A,N/A
-deleted,0.000000,0.000000,N/A,N/A,N/A

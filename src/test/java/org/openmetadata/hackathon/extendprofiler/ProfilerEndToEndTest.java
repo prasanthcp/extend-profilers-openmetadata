@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.openmetadata.hackathon.extendprofiler.data.CsvDataReader;
 import org.openmetadata.hackathon.extendprofiler.export.CsvResultWriter;
+import org.openmetadata.hackathon.extendprofiler.export.ProfileResult;
 import org.openmetadata.hackathon.extendprofiler.metrics.*;
 
 import java.io.FileReader;
@@ -81,9 +82,20 @@ class ProfilerEndToEndTest {
 
         // --- 5. Write results ---
         Path outputCsv = tempDir.resolve("output.csv");
-        List<String> metricNames = List.of("Entropy", "Kurtosis", "Skewness", "Seasonality", "ValueAge");
+        // Build ProfileResult list for the new writer API
+        List<ProfileResult> profileResults = new ArrayList<>();
+        ProfileResult pr = new ProfileResult("test.db.public.sample", System.currentTimeMillis(), 10, columnCount);
+        for (var entry : results.entrySet()) {
+            for (var metric : entry.getValue().entrySet()) {
+                if (metric.getValue() != null) {
+                    pr.addColumnMetric(entry.getKey(), metric.getKey(), metric.getValue());
+                }
+            }
+        }
+        profileResults.add(pr);
+
         CsvResultWriter writer = new CsvResultWriter(outputCsv.toString());
-        writer.write(results, metricNames);
+        writer.write(profileResults);
 
         // --- 6. Verify output file ---
         assertTrue(outputCsv.toFile().exists(), "Output CSV should exist");
@@ -98,6 +110,7 @@ class ProfilerEndToEndTest {
 
             // Verify headers
             List<String> outputHeaders = parser.getHeaderNames();
+            assertTrue(outputHeaders.contains("table"));
             assertTrue(outputHeaders.contains("column"));
             assertTrue(outputHeaders.contains("Entropy"));
             assertTrue(outputHeaders.contains("Kurtosis"));

@@ -13,8 +13,6 @@ public class ProfileResult {
     private final Map<String, Double> tableMetrics = new LinkedHashMap<>();
     // column-level: columnName -> (metricName -> value)
     private final Map<String, Map<String, Double>> columnMetrics = new LinkedHashMap<>();
-    // column-level basic stats: columnName -> (statName -> value)
-    private final Map<String, Map<String, Object>> columnBasicStats = new LinkedHashMap<>();
 
     public ProfileResult(String tableFqn, long timestamp, int rowCount, int columnCount) {
         this.tableFqn = tableFqn;
@@ -31,9 +29,6 @@ public class ProfileResult {
         columnMetrics.computeIfAbsent(column, k -> new LinkedHashMap<>()).put(metricName, value);
     }
 
-    public void addColumnBasicStats(String column, Map<String, Object> stats) {
-        columnBasicStats.put(column, stats);
-    }
 
     public String getTableFqn()   { return tableFqn; }
     public long getTimestamp()     { return timestamp; }
@@ -41,7 +36,6 @@ public class ProfileResult {
     public int getColumnCount()    { return columnCount; }
     public Map<String, Double> getTableMetrics()                    { return tableMetrics; }
     public Map<String, Map<String, Double>> getColumnMetrics()      { return columnMetrics; }
-    public Map<String, Map<String, Object>> getColumnBasicStats()  { return columnBasicStats; }
     public String getOmUrl()               { return omUrl; }
     public void setOmUrl(String omUrl)     { this.omUrl = omUrl; }
 
