@@ -94,7 +94,7 @@ Results are also pushed to OM's Profiler tab (custom metrics + timeseries graphs
 
 **Custom metrics in OpenMetadata UI** — entropy timeseries built from repeated profiler runs:
 
-![OpenMetadata Profiler UI](misc/Screenshot%201.png)
+![OpenMetadata Profiler UI](misc/screenshot%201.png)
 
 **HTML report** — collapsible tables, color-coded metrics, health scores:
 
