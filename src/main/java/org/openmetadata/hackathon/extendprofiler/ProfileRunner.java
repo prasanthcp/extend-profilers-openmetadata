@@ -9,6 +9,7 @@ import org.openmetadata.hackathon.extendprofiler.client.ConnectionResolver;
 import org.openmetadata.hackathon.extendprofiler.client.OMClient;
 import org.openmetadata.hackathon.extendprofiler.client.OMClientException;
 import org.openmetadata.hackathon.extendprofiler.data.JdbcDataSource;
+import org.openmetadata.hackathon.extendprofiler.data.SqlDialect;
 import org.openmetadata.hackathon.extendprofiler.export.*;
 import org.openmetadata.hackathon.extendprofiler.metrics.MetricRegistry;
 
@@ -16,9 +17,20 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+
 public class ProfileRunner {
 
     private static final Logger log = LoggerFactory.getLogger(ProfileRunner.class);
+    private static final Map<String, Connection> connectionCache = new HashMap<>();
+    private static final HashSet<String> failedUrls = new HashSet<>();
+
+    private static HashSet<String> profiledTables = new HashSet<>();
 
     public static void main(String[] args) {
         if (args.length < 1) {
@@ -44,6 +56,8 @@ public class ProfileRunner {
         String omUrl   = config.get("omUrl").asText();
         String omEmail = config.get("omEmail").asText();
         String omPass  = config.get("omPassword").asText();
+        String dbUser  = config.get("dbUser").asText();
+        String dbPass  = config.get("dbPassword").asText();
 
         OMClient om = new OMClient(omUrl);
         om.login(omEmail, omPass);
@@ -82,28 +96,29 @@ public class ProfileRunner {
             String fqn = te.fqn;
             processed++;
 
+            if (profiledTables.contains(fqn)) {
+                log.debug("Already profiled {}, skipping duplicate.", fqn);
+                continue;
+            }
+            profiledTables.add(fqn);
+
             try {
                 ProfileResult result = null;
 
                 if (te.config.has("jdbcUrl")) {
                     String jdbcUrl = te.config.get("jdbcUrl").asText();
-                    String dbUser = te.config.get("dbUser").asText();
-                    String dbPass = te.config.get("dbPassword").asText();
                     String tableName = te.config.get("tableName").asText();
                     int limit = te.config.has("sampleLimit") ? te.config.get("sampleLimit").asInt() : 500;
                     String sampleType = te.config.has("sampleType") ? te.config.get("sampleType").asText() : "ROWS";
 
-                    try (JdbcDataSource jdbc = new JdbcDataSource(jdbcUrl, dbUser, dbPass, tableName, limit, sampleType)) {
-                        JsonNode tbl = om.fetchTable(fqn);
-                        result = profiler.runWith(tbl, jdbc);
-                    }
+                    Connection conn = getOrCreateConnection(jdbcUrl, dbUser, dbPass);
+                    SqlDialect dialect = SqlDialect.fromJdbcUrl(jdbcUrl);
+                    JdbcDataSource jdbc = new JdbcDataSource(conn, tableName, limit, sampleType, dialect);
+                    JsonNode tbl = om.fetchTable(fqn);
+                    result = profiler.runWith(tbl, jdbc);
 
                 } else {
-                    result = tryAutoDiscover(om, profiler, fqn, te.config);
-                }
-
-                if (result == null) {
-                    result = profiler.run(fqn);
+                    result = tryAutoDiscover(om, profiler, fqn, te.config, dbUser, dbPass);
                 }
 
                 if (result != null) {
@@ -131,40 +146,63 @@ public class ProfileRunner {
             new HtmlResultWriter(outputDir + "/LatestReport.html").write(results);
         }
 
+        for (Connection c : connectionCache.values()) {
+            try { c.close(); } catch (SQLException ignored) {}
+        }
+        connectionCache.clear();
+
         log.info("Done. Profiled {}/{} tables ({} failed).", results.size(), entries.size(), failed);
     }
 
     private static ProfileResult tryAutoDiscover(OMClient om, Profiler profiler,
-                                                  String fqn, JsonNode entryConfig) {
+                                                  String fqn, JsonNode entryConfig,
+                                                  String dbUser, String dbPass) {
         try {
             String serviceName = ConnectionResolver.extractServiceName(fqn);
             if (serviceName == null) return null;
 
             JsonNode serviceJson = om.fetchDatabaseService(serviceName);
             if (serviceJson == null) {
-                log.debug("Could not fetch database service '{}' -- will fall back to sample data", serviceName);
+                log.debug("Could not fetch database service '{}'", serviceName);
                 return null;
             }
 
             ConnectionResolver.ResolvedConnection resolved = ConnectionResolver.resolve(serviceJson, fqn);
             if (resolved == null || resolved.jdbcUrl == null || resolved.tableName == null) {
-                log.debug("Could not resolve JDBC for {} -- will fall back to sample data", fqn);
+                log.debug("Could not resolve JDBC for {}", fqn);
                 return null;
             }
 
             int limit = entryConfig.has("sampleLimit") ? entryConfig.get("sampleLimit").asInt() : 500;
             String sampleType = entryConfig.has("sampleType") ? entryConfig.get("sampleType").asText() : "ROWS";
 
-            log.debug("Profiling: {} (auto-discovered JDBC: {}, sample: {} {})",
-                    fqn, resolved.jdbcUrl, limit, sampleType);
+            Connection conn = getOrCreateConnection(resolved.jdbcUrl, dbUser, dbPass);
+            if (conn == null) return null;
 
-            try (JdbcDataSource jdbc = new JdbcDataSource(resolved.jdbcUrl, resolved.user,
-                    resolved.password, resolved.tableName, limit, sampleType)) {
-                JsonNode tbl = om.fetchTable(fqn);
-                return profiler.runWith(tbl, jdbc);
-            }
+            JdbcDataSource jdbc = new JdbcDataSource(conn, resolved.tableName, limit, sampleType, resolved.dialect);
+            JsonNode tbl = om.fetchTable(fqn);
+            return profiler.runWith(tbl, jdbc);
+
         } catch (Exception e) {
-            log.debug("Auto-discovery failed for {}: {}", fqn, e.getMessage());
+            log.debug("JDBC resolution failed for {}: {}", fqn, e.getMessage());
+            return null;
+        }
+    }
+
+    private static Connection getOrCreateConnection(String jdbcUrl, String user, String pass) {
+        if (failedUrls.contains(jdbcUrl)) return null;
+
+        Connection conn = connectionCache.get(jdbcUrl);
+        if (conn != null) return conn;
+
+        try {
+            log.debug("Creating JDBC connection for {}", jdbcUrl);
+            conn = DriverManager.getConnection(jdbcUrl, user, pass);
+            connectionCache.put(jdbcUrl, conn);
+            return conn;
+        } catch (SQLException e) {
+            failedUrls.add(jdbcUrl);
+            log.warn("JDBC connection failed for {} — will skip remaining tables on this URL", jdbcUrl);
             return null;
         }
     }
@@ -185,15 +223,12 @@ public class ProfileRunner {
         log.info("    \"omUrl\": \"http://localhost:8585\",");
         log.info("    \"omEmail\": \"admin@open-metadata.org\",");
         log.info("    \"omPassword\": \"YWRtaW4=\",");
+        log.info("    \"dbUser\": \"postgres\",");
+        log.info("    \"dbPassword\": \"password\",");
         log.info("    \"outputDir\": \"output\",");
         log.info("    \"tables\": [");
-        log.info("      {");
-        log.info("        \"fqn\": \"service.database.schema.table\"");
-        log.info("        // JDBC auto-discovered from OM. Or provide explicit:");
-        log.info("        // \"jdbcUrl\": \"jdbc:postgresql://host:5432/db\",");
-        log.info("        // \"dbUser\": \"user\", \"dbPassword\": \"pass\", \"tableName\": \"table\"");
-        log.info("      },");
-        log.info("      { \"fqn\": \"service.database.schema.*\" }  // wildcard: all tables in schema");
+        log.info("      { \"fqn\": \"service.database.schema.table\" },");
+        log.info("      { \"fqn\": \"service.database.schema.*\" }");
         log.info("    ]");
         log.info("  }");
     }

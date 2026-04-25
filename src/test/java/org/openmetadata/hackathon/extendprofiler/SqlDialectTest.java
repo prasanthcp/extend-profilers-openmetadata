@@ -48,7 +48,7 @@ class SqlDialectTest {
 
     @Test
     void postgresql_randomSampleQuery() {
-        String sql = SqlDialect.POSTGRESQL.randomSampleQuery("users", 100);
+        String sql = SqlDialect.POSTGRESQL.randomSampleQuery("users", 100, 0);
         assertTrue(sql.contains("ORDER BY RANDOM()"));
         assertTrue(sql.contains("LIMIT 100"));
         assertTrue(sql.contains("users"));
@@ -56,14 +56,14 @@ class SqlDialectTest {
 
     @Test
     void mysql_randomSampleQuery() {
-        String sql = SqlDialect.MYSQL.randomSampleQuery("users", 50);
+        String sql = SqlDialect.MYSQL.randomSampleQuery("users", 50, 1000);
         assertTrue(sql.contains("ORDER BY RAND()"));
         assertTrue(sql.contains("LIMIT 50"));
     }
 
     @Test
     void generic_randomSampleQuery_usesPostgresSyntax() {
-        String sql = SqlDialect.GENERIC.randomSampleQuery("t", 10);
+        String sql = SqlDialect.GENERIC.randomSampleQuery("t", 10, 100);
         assertTrue(sql.contains("ORDER BY RANDOM()"));
     }
 
@@ -122,7 +122,7 @@ class SqlDialectTest {
     @Test
     void allDialects_produceSql() {
         for (SqlDialect d : SqlDialect.values()) {
-            assertFalse(d.randomSampleQuery("t", 1).isEmpty());
+            assertFalse(d.randomSampleQuery("t", 1, 100).isEmpty());
             assertFalse(d.timestampAgeHoursSql("c").isEmpty());
             assertFalse(d.epochAgeHoursSql("c").isEmpty());
             assertFalse(d.stddevFunction().isEmpty());

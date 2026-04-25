@@ -4,11 +4,20 @@ public enum SqlDialect {
 
     POSTGRESQL { 
         // public implementations
+
+        @Override
+        public String randomSampleQuery(String table, int limit, int totalRowCount) {
+            if (totalRowCount <= 0) {
+                return String.format("SELECT * FROM %s ORDER BY RANDOM() LIMIT %d", table, limit);
+            }
+            double percentage = Math.min(100.0, (limit * 150.0) / totalRowCount);
+            return String.format("SELECT * FROM %s TABLESAMPLE SYSTEM (%.2f) LIMIT %d", table, percentage, limit);
+        }
     },
 
     MYSQL {
         @Override
-        public String randomSampleQuery(String table, int limit) {
+        public String randomSampleQuery(String table, int limit, int totalRowCount) {
             return String.format("SELECT * FROM %s ORDER BY RAND() LIMIT %d", table, limit);
         }
 
@@ -32,7 +41,7 @@ public enum SqlDialect {
         // public implementations
     };
 
-    public String randomSampleQuery(String table, int limit) {
+    public String randomSampleQuery(String table, int limit, int totalRowCount) {
         return String.format("SELECT * FROM %s ORDER BY RANDOM() LIMIT %d", table, limit);
     }
 

@@ -81,31 +81,37 @@ public class Profiler {
 
     private void computeSeasonality(String tableFqn, String tableId, Set<String> existing,
                                      ProfileResult result, List<MetricResult> tableLvl) {
+        SeasonalityMetric sm = new SeasonalityMetric();
+        double seasonalityValue = 0.0;
         try {
             long endTs = System.currentTimeMillis() / 1000;
             long startTs = endTs - (90L * 24 * 60 * 60);
             JsonNode history = client.fetchProfileHistory(tableFqn, startTs, endTs);
-            if (history == null || !history.isArray() || history.size() < 4) {
-                log.debug("Not enough profile history for seasonality (need >= 4 runs)");
-                return;
-            }
-            double[] rowCounts = new double[history.size()];
-            for (int i = 0; i < history.size(); i++) {
-                rowCounts[i] = history.get(i).path("rowCount").asDouble(0);
-            }
-            SeasonalityMetric sm = new SeasonalityMetric();
-            Double seasonality = sm.computeFromHistory(rowCounts);
-            if (seasonality != null) {
-                if (!existing.contains(sm.getName())) {
-                    client.addCustomMetric(tableId, sm.getName(), sm.getDescription(), null);
+
+            if (history != null && history.isArray() && history.size() >= 4) {
+                double[] rowCounts = new double[history.size()];
+                for (int i = 0; i < history.size(); i++) {
+                    rowCounts[i] = history.get(i).path("rowCount").asDouble(0);
                 }
-                tableLvl.add(new MetricResult(sm.getName(), seasonality));
-                result.addTableMetric(sm.getName(), seasonality);
+                Double computed = sm.computeFromHistory(rowCounts);
+                if (computed != null) seasonalityValue = computed;
+                log.debug("Seasonality from {} profile runs: {}", history.size(), seasonalityValue);
+            } else {
+                log.debug("Not enough profile history for seasonality (need >= 4 runs)");
             }
-            log.debug("Seasonality from {} profile runs: {}", history.size(), seasonality);
         } catch (Exception e) {
             log.warn("Could not compute seasonality from OM history: {}", e.getMessage());
         }
+
+        try {
+            if (!existing.contains(sm.getName())) {
+                client.addCustomMetric(tableId, sm.getName(), sm.getDescription(), null);
+            }
+        } catch (Exception e) {
+            log.debug("Could not register seasonality metric: {}", e.getMessage());
+        }
+        tableLvl.add(new MetricResult(sm.getName(), seasonalityValue));
+        result.addTableMetric(sm.getName(), seasonalityValue);
     }
 
     private String computeColumnProfiles(DataSource src, String tableId, Set<String> existing,

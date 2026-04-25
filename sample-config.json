@@ -2,13 +2,13 @@
   "omUrl": "http://localhost:8585",
   "omEmail": "admin@open-metadata.org",
   "omPassword": "YWRtaW4=",
+  "dbUser": "postgres",
+  "dbPassword": "password",
   "outputDir": "output",
   "tables": [
     {
       "fqn": "local_postgres.openmetadata_db.public.table_entity",
       "jdbcUrl": "jdbc:postgresql://localhost:5432/openmetadata_db",
-      "dbUser": "postgres",
-      "dbPassword": "password",
       "tableName": "table_entity",
       "sampleLimit": 500,
       "sampleType": "ROWS"
@@ -16,18 +16,14 @@
     {
       "fqn": "local_postgres.openmetadata_db.public.entity_relationship",
       "jdbcUrl": "jdbc:postgresql://localhost:5432/openmetadata_db",
-      "dbUser": "postgres",
-      "dbPassword": "password",
       "tableName": "entity_relationship",
       "sampleLimit": 50,
       "sampleType": "PERCENTAGE"
     },
     {
-      "_comment": "Auto-discover JDBC from OM -- just provide FQN",
       "fqn": "local_postgres.openmetadata_db.public.installed_apps"
     },
     {
-      "_comment": "Wildcard -- profile all tables in schema",
       "fqn": "local_postgres.openmetadata_db.public.*"
     }
   ]

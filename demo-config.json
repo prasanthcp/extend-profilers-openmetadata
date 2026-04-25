@@ -1,0 +1,20 @@
+{
+  "omUrl": "http://localhost:8585",
+  "omEmail": "admin@open-metadata.org",
+  "omPassword": "YWRtaW4=",
+  "dbUser": "postgres",
+  "dbPassword": "password",
+  "outputDir": "output",
+  "tables": [
+    {
+      "fqn": "local_postgres.openmetadata_db.public.demo_sales_clean",
+      "jdbcUrl": "jdbc:postgresql://localhost:5432/openmetadata_db",
+      "tableName": "demo_sales_clean"
+    },
+    {
+      "fqn": "local_postgres.openmetadata_db.public.demo_sales_dirty",
+      "jdbcUrl": "jdbc:postgresql://localhost:5432/openmetadata_db",
+      "tableName": "demo_sales_dirty"
+    }
+  ]
+}

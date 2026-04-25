@@ -13,144 +13,117 @@ Hackathon issue: https://github.com/open-metadata/OpenMetadata/issues/26662
 ## How It Works
 
 ```
-Config (JSON)
+Config (JSON) -- omUrl, dbUser/dbPassword, table FQNs
      |
      v
-ProfileRunner  -->  OM API (push profiles)
+ProfileRunner  -->  OM API (register metrics + push profiles)
   |  Profiler       JSON/CSV/HTML export
   |  MetricRegistry
   v
-JDBC / OM Sample Data / Auto-Discovery (ConnectionResolver)
+JDBC (auto-discovered or explicit) --> ConnectionResolver
 ```
 
-1. **Ingest** -- JDBC (random sample + COUNT(*)) or OM sample data API. Auto-discovers JDBC from OM's database service config if no URL given.
-2. **Compute** -- runs advanced metrics per column based on type (numeric/string/timestamp).
-3. **Sync** -- registers custom metric definitions in OM, pushes profiles via table profile API.
-4. **Export** -- per-table JSON/CSV + single `LatestReport.html` with collapsible cards, health scores, color coding.
+1. **Ingest** -- connects to DB via JDBC (random sample + COUNT(*)). JDBC URL either provided in config or auto-discovered from OM's database service API. DB credentials (`dbUser`/`dbPassword`) are mandatory top-level config fields.
+2. **Compute** -- runs column-level metrics based on type (numeric/string/timestamp). Seasonality computed separately from OM profile history.
+3. **Sync** -- registers custom metric definitions in OM (skips if already registered), pushes profiles via table profile API.
+4. **Export** -- JSON + CSV (with table-level metrics) + `LatestReport.html` dashboard.
 
 ## Key Files
 
 ```
-ProfileRunner.java      -- entry point, config, wildcard expansion, 3-tier fallback
-Profiler.java           -- runs metrics, builds OM payloads
+ProfileRunner.java        -- entry point, config parsing, wildcard expansion, JDBC connection management
+Profiler.java             -- metric computation, seasonality from OM history, OM payload builder
 client/
-  OMClient.java         -- OM REST wrapper (auth, fetch, push, listTables)
-  ConnectionResolver.java -- OM service JSON -> JDBC connection
+  OMClient.java           -- OM REST wrapper (auth, fetch, push, listTables)
+  ConnectionResolver.java -- OM service JSON -> JDBC URL (with Docker hostname rewriting)
 data/
-  JdbcDataSource.java   -- JDBC sampling, implements QueryCapable
-  SampleDataSource.java -- OM sample data fallback
-  SqlDialect.java       -- DB-specific SQL (POSTGRESQL, MYSQL, GENERIC)
-  QueryCapable.java     -- interface: executeQuery(), getDialect()
+  JdbcDataSource.java     -- JDBC sampling with TABLESAMPLE support, implements QueryCapable
+  SqlDialect.java         -- DB-specific SQL (POSTGRESQL, MYSQL, GENERIC)
+  QueryCapable.java       -- interface for SQL-native metrics
 metrics/
   EntropyMetric, RelativeEntropyMetric, KurtosisMetric, SkewnessMetric,
   SeasonalityMetric, ValueAgeMetric
+  MetricRegistry.java     -- maps metrics to column types + levels
 export/
-  HtmlResultWriter.java -- the big HTML report
+  HtmlResultWriter.java   -- HTML dashboard with collapsible cards, health scores
+  CsvResultWriter.java    -- CSV export including table-level metrics
+  ProfileResult.java      -- metric result container
 ```
 
 ## Metrics
 
-| Metric | Numeric | String | Timestamp | Min rows |
-|--------|---------|--------|-----------|----------|
-| Entropy | y | y | y | 1 |
-| Relative Entropy | y | y | y | 1 |
-| Kurtosis | y | - | - | 4 |
-| Skewness | y | - | - | 3 |
-| Seasonality | y | - | - | 4 |
-| ValueAge | - | - | y | 1 |
+Column-level metrics (registered in MetricRegistry):
+
+| Metric | Numeric | String | Timestamp | Notes |
+|--------|---------|--------|-----------|-------|
+| Entropy | y | y | y | Shannon entropy -- measures value diversity |
+| Relative Entropy | y | y | y | KL divergence vs uniform distribution |
+| Kurtosis | y | - | - | Tail heaviness, needs 4+ values |
+| Skewness | y | - | - | Distribution asymmetry, needs 3+ values |
+| Value Age | y | - | y | Hours since latest value. SQL-native via SqlAwareMetric |
+
+Table-level metric (computed separately, not via registry):
+
+| Metric | Source | Notes |
+|--------|--------|-------|
+| Seasonality | OM profile history | Detects repeating row-count patterns. Needs 4+ profiler runs. Shows 0 if insufficient history. |
 
 ## OM API Flow
 
 ```
 POST /api/v1/users/login                         -- get JWT
-GET  /api/v1/tables/name/{fqn}?fields=...        -- table + columns + sample data
-PUT  /api/v1/tables/{id}/customMetric             -- register metric definition (once per metric)
-PUT  /api/v1/tables/{id}/tableProfile             -- push computed profiles
-GET  /api/v1/services/databaseServices/name/{svc} -- auto-discover JDBC config
-GET  /api/v1/tables?databaseSchema={fqn}&limit=N  -- wildcard table listing
-DELETE /api/v1/tables/{id}/customMetric/{col}/{metric} -- remove metric
+GET  /api/v1/tables/name/{fqn}?fields=...        -- table + columns
+PUT  /api/v1/tables/{id}/customMetric             -- register metric definition
+PUT  /api/v1/tables/{id}/tableProfile             -- push computed profiles (appends timeseries)
+GET  /api/v1/services/databaseServices/name/{svc} -- auto-discover JDBC URL
+GET  /api/v1/tables?databaseSchema={fqn}&limit=N  -- wildcard table listing (paginated)
 ```
 
-Full API docs: [Table Profiler API](https://docs.open-metadata.org/v1.11.x/api-reference/data-assets/tables/profiler#table-profiler) | [Profiler Metrics](https://docs.open-metadata.org/v1.12.x/how-to-guides/data-quality-observability/profiler/metrics)
-
-Custom metric definitions must be registered before values show up in OM UI. Existing definitions are detected and skipped on repeat runs.
-
-Each `PUT tableProfile` appends a timeseries entry (not replace) -- repeated runs build line charts in OM.
-
-## Dialect Handling
-
-`SqlDialect` enum auto-detected from JDBC URL. Overrides: `randomSampleQuery()`, `timestampAgeHoursSql()`, `epochAgeHoursSql()`.
-
-- PG: `ORDER BY RANDOM()`, `EXTRACT(EPOCH FROM ...)`
-- MySQL: `ORDER BY RAND()`, `TIMESTAMPDIFF(...)`, `UNIX_TIMESTAMP()`
+Custom metric definitions must be registered before values show in OM UI. Existing definitions are detected and skipped.
 
 ## Auto-Discovery
 
-Just provide FQN in config, no JDBC credentials needed. Tool calls `GET /databaseServices/name/{service}`, extracts hostPort/user/password, builds JDBC URL. Supports: postgres, mysql, mariadb, mssql, redshift, snowflake.
+Provide FQN and top-level `dbUser`/`dbPassword` in config. Tool calls `GET /databaseServices/name/{service}` to extract hostPort, builds JDBC URL. Docker hostnames (e.g., `openmetadata_postgresql`) are rewritten to `localhost` for host-side access.
 
-3-tier fallback: explicit JDBC > auto-discover from OM > OM sample data.
+Fallback: explicit `jdbcUrl` in table config > auto-discover from OM service.
+
+Failed JDBC URLs are cached to avoid repeated connection timeouts when profiling large schemas.
 
 ## Wildcard Profiling
 
-`"fqn": "service.db.schema.*"` expands to all tables via paginated `listTables`. Progress logged every 25 tables.
+`"fqn": "service.db.schema.*"` expands to all tables via paginated `listTables`. Deduplicates against explicitly listed tables. Progress logged every 25 tables.
 
-## HTML Report
+## HTML Dashboard
 
 - Collapsible `<details>/<summary>` cards per table
-- Health scores based on advanced metrics
-- Color coding: green/amber/red/grey
-- "View in OpenMetadata" link per table
+- Health scores based on metric values
+- Color coding: green/amber/red for metric ratings
+- "View in OpenMetadata" deep link per table
+- Collapsible "Get Started" guide at the top
+- Deployed to GitHub Pages via CI workflow
 
 ## Logging
 
-Config: `src/main/resources/logback.xml`. Default INFO. Set DEBUG for per-metric/per-query detail. OkHttp and Jackson forced to WARN.
+`src/main/resources/logback.xml`. Default INFO. Set DEBUG for per-metric/per-query detail. OkHttp and Jackson forced to WARN.
 
-## Completed
+## Demo Data
 
-- 6 advanced metrics (entropy, relative entropy, kurtosis, skewness, seasonality, value-age)
-- Multi-dialect JDBC (PostgreSQL, MySQL, Generic)
-- Auto-discovery from OM database service API
-- Schema-level wildcard profiling
-- QueryCapable interface (decouples metrics from raw Connection)
-- JSON/CSV/HTML export
-- Push to OM via tableProfile API + custom metric registration
-- Collapsible HTML cards, health scores, color coding
-- Logging cleanup (verbose -> DEBUG)
-- Unit tests for SqlDialect, ConnectionResolver, wildcard expansion
-- Live verification against OM Docker (auto-discovery, wildcards, OM UI check)
-- GitHub Pages for HTML report (easiest)
-- Add code test runs and standard tests in git at each push. maybe qodo or copilot.
+`misc/demo_data.sql` creates two tables (500 rows each) in `openmetadata_db.public`:
 
-## Pending
+- **demo_sales_clean** -- balanced categories, normal amount distribution, recent timestamps
+- **demo_sales_dirty** -- 95% single category, extreme outlier amounts, stale timestamps, constant region
 
-- [ ] Stress test: 1M+ row tables, 100+ table schemas, wide tables (50+ cols), high-cardinality columns
-- [ ] Scale test: production-sized DB, PERCENTAGE sampling on large tables, concurrent API calls
-- [ ] Performance improvements:
-  - `ORDER BY RANDOM()` does full table scan -- consider `TABLESAMPLE` for PG
-  - No parallelism (sequential per column per table)
-  - All sample data in memory -- large samples can OOM
-  - No OkHttp connection pooling or timeout config
-  - New JDBC connection per table (no reuse within same DB)
+Profiling both side by side shows dramatic metric differences across all six metrics.
 
-- [ ] Investigate bugs:
-  - Wildcard doesn't deduplicate (table in both explicit + wildcard = profiled twice)
-  - Auto-discovered password may be encrypted, not plain text
-  - `listTables` param name may differ across OM versions
-  - No JDBC query timeout -- slow query blocks everything
-  
-- [ ] Demo prep (OM Docker + sample DB + run + walkthrough)
-- [ ] 3-min demo video:
-  - 0:00-0:30 -- what it does, what problem it solves
-  - 0:30-1:00 -- architecture + tech stack
-  - 1:00-2:30 -- live run: config, execute, HTML report, OM UI
-  - Video recording as "deployed" proof
-  - 2:30-3:00 -- learnings + where AI was used
+## Known Limitations
 
+- No parallelism (sequential per column per table)
+- No OkHttp connection pooling or timeout config
+- Not stress-tested on 1M+ row tables or 50+ column tables
 
 ## Links
 
 - [Hackathon Issue #26662](https://github.com/open-metadata/OpenMetadata/issues/26662)
 - [Table Profiler API](https://docs.open-metadata.org/v1.11.x/api-reference/data-assets/tables/profiler#table-profiler)
 - [Profiler Metrics Docs](https://docs.open-metadata.org/v1.12.x/how-to-guides/data-quality-observability/profiler/metrics)
-- [Profiler Workflow](https://docs.open-metadata.org/v1.12.x/how-to-guides/data-quality-observability/profiler/profiler-workflow)
 - [OM Profiler Registry (source)](https://github.com/open-metadata/OpenMetadata/blob/main/ingestion/src/metadata/profiler/metrics/registry.py)

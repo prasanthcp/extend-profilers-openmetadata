@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DQ Profiler Companion | OpenMetadata Hackathon</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #020617;
+            --card: rgba(30, 41, 59, 0.5);
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
+            --border: rgba(255, 255, 255, 0.08);
+            --hover: rgba(255, 255, 255, 0.05);
+            --input-bg: rgba(15, 23, 42, 0.6);
+            --pre-bg: rgba(0, 0, 0, 0.4);
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.3);
+            --brand-gradient: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+        }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            min-height: 100vh;
+            background-image:
+                radial-gradient(circle at 0% 0%, rgba(56, 189, 248, 0.08) 0%, transparent 25%),
+                radial-gradient(circle at 100% 100%, rgba(129, 140, 248, 0.08) 0%, transparent 25%);
+        }
+        .wizard-step { display: none; }
+        .wizard-step.active { display: block; animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .glass-card {
+            background: var(--card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .step-indicator {
+            color: #64748b; transition: all 0.3s ease; position: relative;
+            background: none; border: none; cursor: pointer;
+        }
+        .step-indicator.active { color: #fff; }
+        .step-indicator.active::after {
+            content: ''; position: absolute; bottom: -2px; left: 0; width: 100%; height: 2px;
+            background: var(--brand-gradient); box-shadow: 0 0 10px var(--accent-glow);
+        }
+        pre { background: var(--pre-bg); padding: 1.25rem; border-radius: 12px; font-size: 0.85rem; border: 1px solid var(--border); }
+        code { font-family: 'JetBrains Mono', monospace; }
+        input, select, textarea {
+            background: var(--input-bg) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 8px !important; color: var(--text) !important;
+        }
+        .table-selector { background: var(--input-bg); border: 1px solid var(--border); border-radius: 12px; padding: 10px 16px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; width: 100%; max-width: 500px; cursor: pointer; }
+        .table-selector:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .btn-brand { background: var(--brand-gradient); color: white; font-weight: 700; transition: all 0.2s ease; }
+        .btn-brand:hover { transform: translateY(-1px); filter: brightness(1.1); box-shadow: 0 4px 15px var(--accent-glow); }
+        .score-circle-container { width: 90px; height: 90px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2em; font-weight: 800; color: #fff; flex-shrink: 0; }
+        .score-good { background: #10b981; }
+        .score-warn { background: #f59e0b; }
+        .score-bad  { background: #ef4444; }
+        .score-bar { background: rgba(255,255,255,0.1); border-radius: 6px; height: 10px; width: 100%; overflow: hidden; }
+        .score-fill { height: 100%; transition: width 1s cubic-bezier(0.4, 0, 0.2, 1); }
+        .metric-cell { font-size: 0.85rem; font-weight: 700; padding: 6px 12px; border-radius: 6px; display: inline-block; min-width: 60px; text-align: center; }
+        .bg-good { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+        .bg-warn { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+        .bg-bad  { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .bg-neutral { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
+        .switch { position: relative; display: inline-block; width: 34px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #334155; transition: .4s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #38bdf8; }
+        input:checked + .slider:before { transform: translateX(14px); }
+        .loading-shimmer {
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+            background-size: 200% 100%; animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <header class="mb-8 text-center">
+            <div class="inline-block px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[10px] font-bold mb-4 uppercase tracking-[0.2em]">
+                OpenMetadata Hackathon &middot; Issue #26662
+            </div>
+            <h1 class="text-5xl font-extrabold text-white mb-3 tracking-tight">DQ Profiler <span class="bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-indigo-400">Companion</span></h1>
+            <p class="text-slate-400 text-lg">Advanced statistical profiling for OpenMetadata</p>
+        </header>
+
+        <!-- Gemini API Key (persisted in localStorage) -->
+        <div class="flex justify-center mb-8">
+            <div class="flex items-center gap-3 bg-indigo-500/5 border border-indigo-500/15 rounded-xl px-5 py-2.5">
+                <i class="fas fa-key text-indigo-400 text-xs"></i>
+                <input type="password" id="gemini-key" placeholder="Gemini API key (optional, enables AI features)"
+                       class="bg-transparent !border-none text-sm w-80 text-indigo-300 placeholder-indigo-400/40 !p-0"
+                       oninput="localStorage.setItem('gemini-key', this.value)">
+                <span id="ai-status" class="text-[10px] font-bold uppercase tracking-widest text-slate-600">offline</span>
+            </div>
+        </div>
+
+        <nav class="flex justify-center space-x-12 mb-10 border-b border-slate-800/50">
+            <button onclick="goToStep(1)" id="nav-1" class="step-indicator pb-3 active text-sm font-bold uppercase tracking-wider">1. Configure</button>
+            <button onclick="goToStep(2)" id="nav-2" class="step-indicator pb-3 text-sm font-bold uppercase tracking-wider">2. Run</button>
+            <button onclick="goToStep(3)" id="nav-3" class="step-indicator pb-3 text-sm font-bold uppercase tracking-wider">3. Results</button>
+        </nav>
+
+        <!-- Step 1: Configure -->
+        <section id="step-1" class="wizard-step active">
+            <!-- Potential Impact — Real-World Incidents -->
+            <details class="glass-card overflow-hidden border-sky-500/20 bg-sky-500/5 mb-8" open>
+                <summary class="p-6 cursor-pointer list-none select-none hover:bg-white/5 flex justify-between items-center">
+                    <h2 class="text-sm font-black text-white uppercase tracking-[0.2em] flex items-center">
+                        <i class="fas fa-bolt mr-2 text-sky-400"></i>Why Advanced Profiling? &mdash; Real-World Incidents
+                    </h2>
+                    <i class="fas fa-chevron-down text-slate-500"></i>
+                </summary>
+                <div class="px-6 pb-6">
+                    <p class="text-sm text-slate-300 mb-6">Standard profiling (null counts, row counts) missed all of these. Statistical metrics catch what basic checks cannot.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                            <h4 class="text-rose-400 font-bold text-xs mb-2 uppercase">Knight Capital (2012)</h4>
+                            <p class="text-xs text-slate-400">Lost <b class="text-white">$440M in 45 minutes</b> from undetected outliers in trading data. <b class="text-sky-400">Kurtosis + skewness</b> profiling would have caught the errant prices within seconds.</p>
+                        </div>
+                        <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                            <h4 class="text-amber-400 font-bold text-xs mb-2 uppercase">Zillow Offers (2021)</h4>
+                            <p class="text-xs text-slate-400"><b class="text-white">$569M writedown</b> from distribution drift in housing prices. <b class="text-sky-400">Relative entropy</b> would have flagged the model-vs-reality divergence.</p>
+                        </div>
+                        <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                            <h4 class="text-amber-400 font-bold text-xs mb-2 uppercase">Unity Ad Platform (2022)</h4>
+                            <p class="text-xs text-slate-400"><b class="text-white">$110M lost revenue</b> from "not representative" ingested data. <b class="text-sky-400">Entropy</b> monitoring would have detected the anomaly before model retraining.</p>
+                        </div>
+                        <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                            <h4 class="text-rose-400 font-bold text-xs mb-2 uppercase">Healthcare EHR (2015-2020)</h4>
+                            <p class="text-xs text-slate-400"><b class="text-white">Patient safety events</b> from silently frozen medication feeds. <b class="text-sky-400">Value age</b> profiling detects stale timestamps instantly.</p>
+                        </div>
+                    </div>
+                </div>
+            </details>
+
+            <!-- Get Started Guide -->
+            <details class="glass-card overflow-hidden border-emerald-500/20 bg-emerald-500/5 mb-8">
+                <summary class="p-6 cursor-pointer list-none select-none hover:bg-white/5 flex justify-between items-center">
+                    <h2 class="text-sm font-black text-white uppercase tracking-[0.2em] flex items-center">
+                        <i class="fas fa-rocket mr-2 text-emerald-400"></i>Get Started
+                    </h2>
+                    <i class="fas fa-chevron-down text-slate-500"></i>
+                </summary>
+                <div class="px-6 pb-6 space-y-5">
+                    <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                        <h4 class="text-emerald-400 font-bold text-xs mb-2 uppercase">1. Start OpenMetadata</h4>
+                        <pre class="text-xs"><code>git clone https://github.com/open-metadata/OpenMetadata.git
+cd OpenMetadata/docker/development
+docker compose up -d</code></pre>
+                    </div>
+                    <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                        <h4 class="text-emerald-400 font-bold text-xs mb-2 uppercase">2. Clone this repo</h4>
+                        <pre class="text-xs"><code>git clone https://github.com/prasanthcp/extend-profilers-openmetadata.git
+cd extend-profilers-openmetadata</code></pre>
+                    </div>
+                    <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                        <h4 class="text-emerald-400 font-bold text-xs mb-2 uppercase">3. Configure</h4>
+                        <p class="text-xs text-slate-400">Edit <code class="text-sky-400">config.json</code> with your OM URL, DB credentials, and target tables/schema. Use the form below or download the demo config.</p>
+                    </div>
+                    <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                        <h4 class="text-emerald-400 font-bold text-xs mb-2 uppercase">4. Run the profiler</h4>
+                        <pre class="text-xs"><code>java -jar extend-profilers-openmetadata-0.1.0-SNAPSHOT-all.jar config.json</code></pre>
+                    </div>
+                    <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                        <h4 class="text-emerald-400 font-bold text-xs mb-2 uppercase">5. View results</h4>
+                        <p class="text-xs text-slate-400">Open <code class="text-sky-400">output/LatestReport.html</code> or check the Profiler tab in OM UI for custom metrics.</p>
+                    </div>
+                </div>
+            </details>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="glass-card p-8">
+                    <!-- AI Config Assistant -->
+                    <div id="ai-config-box" class="mb-8 p-5 rounded-2xl bg-indigo-500/5 border border-indigo-500/10">
+                        <h3 class="text-xs font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center">
+                            <i class="fas fa-wand-magic-sparkles mr-2"></i> AI Config Assistant
+                        </h3>
+                        <textarea id="ai-prompt" placeholder="e.g., 'Profile all tables in my Snowflake analytics schema, sample 1000 rows each...'" class="w-full bg-black/20 p-3 text-sm border-none mb-3 resize-none h-16"></textarea>
+                        <button onclick="aiSuggestConfig()" id="ai-suggest-btn" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs uppercase tracking-widest transition-all">
+                            Generate Config with AI
+                        </button>
+                    </div>
+
+                    <h2 class="text-lg font-extrabold mb-6 flex items-center text-white"><i class="fas fa-server mr-3 text-sky-500"></i>CONNECTION</h2>
+                    <div class="space-y-4 mb-8">
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase mb-2 text-slate-500 tracking-widest">OpenMetadata URL</label>
+                            <input type="text" id="om-url" value="http://localhost:8585" oninput="generateJson()" class="w-full p-2.5 text-sm">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[10px] font-bold uppercase mb-2 text-slate-500 tracking-widest">Email</label>
+                                <input type="email" id="om-email" value="admin@open-metadata.org" oninput="generateJson()" class="w-full p-2.5 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold uppercase mb-2 text-slate-500 tracking-widest">Password</label>
+                                <input type="password" id="om-pwd" value="admin" oninput="generateJson()" class="w-full p-2.5 text-sm">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[10px] font-bold uppercase mb-2 text-slate-500 tracking-widest">DB User</label>
+                                <input type="text" id="db-user" value="postgres" oninput="generateJson()" class="w-full p-2.5 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold uppercase mb-2 text-slate-500 tracking-widest">DB Password</label>
+                                <input type="password" id="db-pwd" value="password" oninput="generateJson()" class="w-full p-2.5 text-sm">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-lg font-extrabold flex items-center text-white">
+                            <i class="fas fa-database mr-3 text-sky-500"></i>TABLES
+                        </h2>
+                        <button onclick="addTableRow()" class="btn-brand px-4 py-1.5 rounded-lg text-[11px] uppercase tracking-wider">+ Add Table</button>
+                    </div>
+
+                    <div id="table-rows" class="space-y-4 max-h-[400px] overflow-y-auto pr-2"></div>
+                    <div id="no-tables-msg" class="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-2xl bg-black/10 mt-4">
+                        <span class="text-sm">Click "+ Add Table" to add FQNs. Use <code class="text-sky-400">schema.*</code> for wildcard.</span>
+                    </div>
+                </div>
+
+                <div class="glass-card p-8 flex flex-col">
+                    <h2 class="text-lg font-extrabold mb-6 text-white">CONFIG PREVIEW</h2>
+                    <div class="flex-grow">
+                        <pre id="json-preview" class="h-full min-h-[350px] text-sky-300/90 leading-relaxed font-mono text-xs overflow-auto"></pre>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 mt-6">
+                        <button onclick="copyText(document.getElementById('json-preview').textContent, this)" class="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl font-bold text-xs uppercase tracking-widest transition-all">Copy JSON</button>
+                        <button onclick="downloadJson()" class="bg-emerald-600/20 border border-emerald-500/30 hover:bg-emerald-500/30 text-emerald-400 py-3 rounded-xl font-bold text-xs uppercase tracking-widest transition-all">Download config.json</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Step 2: Run -->
+        <section id="step-2" class="wizard-step">
+            <div class="max-w-3xl mx-auto space-y-8">
+                <div class="glass-card p-12 text-center border-sky-500/10">
+                    <div class="mb-8 inline-flex p-5 rounded-3xl bg-sky-500/10 border border-sky-500/20">
+                        <i class="fas fa-terminal text-5xl text-sky-500"></i>
+                    </div>
+                    <h2 class="text-3xl font-extrabold mb-2 text-white">Run the Profiler</h2>
+                    <p class="text-slate-400 mb-8">Place config.json in the project root, then run:</p>
+                    <div class="space-y-4">
+                        <div class="bg-black/60 p-5 rounded-2xl flex items-center justify-between border border-white/5">
+                            <div class="text-left">
+                                <span class="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Option 1 &mdash; Gradle</span>
+                                <code id="cmd-gradle" class="block text-emerald-400 font-mono text-base mt-1">./gradlew run --args='config.json'</code>
+                            </div>
+                            <button onclick="copyText(document.getElementById('cmd-gradle').textContent, this)" class="bg-sky-500/10 hover:bg-sky-500 text-sky-400 hover:text-white px-4 py-2 rounded-xl transition-all text-[11px] font-bold uppercase tracking-wider ml-4">Copy</button>
+                        </div>
+                        <div class="bg-black/60 p-5 rounded-2xl flex items-center justify-between border border-white/5">
+                            <div class="text-left">
+                                <span class="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Option 2 &mdash; Fat JAR</span>
+                                <code id="cmd-jar" class="block text-emerald-400 font-mono text-base mt-1">java -jar profiler.jar config.json</code>
+                            </div>
+                            <button onclick="copyText(document.getElementById('cmd-jar').textContent, this)" class="bg-sky-500/10 hover:bg-sky-500 text-sky-400 hover:text-white px-4 py-2 rounded-xl transition-all text-[11px] font-bold uppercase tracking-wider ml-4">Copy</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="glass-card p-8">
+                    <h3 class="text-sm font-bold text-white uppercase tracking-widest mb-4">What happens</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+                        <div class="p-4 bg-white/5 rounded-xl">
+                            <div class="text-2xl mb-2">1</div>
+                            <p class="text-xs text-slate-400">Connects to OM, auto-discovers JDBC credentials, samples data from each table</p>
+                        </div>
+                        <div class="p-4 bg-white/5 rounded-xl">
+                            <div class="text-2xl mb-2">2</div>
+                            <p class="text-xs text-slate-400">Computes 6 advanced metrics per column (entropy, kurtosis, skewness, etc.)</p>
+                        </div>
+                        <div class="p-4 bg-white/5 rounded-xl">
+                            <div class="text-2xl mb-2">3</div>
+                            <p class="text-xs text-slate-400">Pushes custom metrics to OM API and writes results.json, results.csv, LatestReport.html</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Step 3: Results Dashboard -->
+        <section id="step-3" class="wizard-step">
+            <div id="overall-health-banner" class="mb-8"></div>
+
+            <!-- AI Summary (shown when Gemini key is set and results loaded) -->
+            <div id="ai-insights-box" class="hidden mb-8 glass-card p-6 border-indigo-500/30 bg-indigo-500/5">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-sm font-black text-white flex items-center uppercase tracking-widest">
+                        <i class="fas fa-wand-magic-sparkles mr-2 text-indigo-400"></i> AI Summary
+                    </h3>
+                    <button onclick="refreshAISummary()" class="text-indigo-400 text-[10px] font-bold hover:underline uppercase">Refresh</button>
+                </div>
+                <div id="ai-summary-text" class="text-indigo-100/80 leading-relaxed text-sm italic font-medium"></div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between mb-8 gap-4">
+                <h2 class="text-3xl font-extrabold text-white">Profiler Results</h2>
+                <div class="flex gap-4">
+                    <button onclick="loadSampleData()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-8 py-3 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all">
+                        Load Demo Data
+                    </button>
+                    <label class="btn-brand px-8 py-3 rounded-xl text-[11px] font-bold uppercase tracking-widest cursor-pointer shadow-lg">
+                        Upload results.json
+                        <input type="file" id="file-upload" class="hidden" accept=".json" onchange="handleFileUpload(event)">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Table selector dropdown (hidden until data is loaded) -->
+            <div id="table-selector-row" class="hidden mb-8 flex items-center gap-4">
+                <label class="text-[10px] font-bold uppercase text-slate-500 tracking-widest whitespace-nowrap">Select Table</label>
+                <select id="table-selector" class="table-selector" onchange="showSelectedTable()"></select>
+            </div>
+
+            <div id="dashboard-content" class="space-y-8">
+                <div class="glass-card p-24 text-center text-slate-500 border-dashed border-2 border-slate-800 bg-black/5">
+                    <i class="fas fa-cloud-upload-alt text-6xl mb-6 block opacity-20"></i>
+                    <p class="text-slate-300 text-lg">Upload your <code class="text-sky-400">results.json</code> from the output directory.</p>
+                </div>
+            </div>
+
+            <div id="report-footer" class="mt-16 space-y-8 hidden">
+                <!-- Metric Reference -->
+                <details class="glass-card overflow-hidden">
+                    <summary class="p-6 cursor-pointer list-none select-none hover:bg-white/5 flex justify-between items-center">
+                        <h2 class="text-sm font-black text-white uppercase tracking-[0.2em] flex items-center">
+                            <i class="fas fa-book mr-2 text-sky-400"></i>Metric Reference
+                        </h2>
+                        <i class="fas fa-chevron-down text-slate-500"></i>
+                    </summary>
+                    <div class="px-6 pb-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                                <h4 class="text-sky-400 font-bold text-xs mb-2 uppercase">Entropy</h4>
+                                <p class="text-xs text-slate-400">Diversity of values. <b class="text-emerald-400">&gt;1.0</b> = healthy. <b class="text-amber-400">&lt;1.0</b> = low diversity, possible value collapse.</p>
+                            </div>
+                            <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                                <h4 class="text-sky-400 font-bold text-xs mb-2 uppercase">Relative Entropy</h4>
+                                <p class="text-xs text-slate-400">KL divergence from uniform. <b class="text-emerald-400">&lt;0.5</b> = balanced. <b class="text-rose-400">&gt;2.0</b> = few values dominate.</p>
+                            </div>
+                            <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                                <h4 class="text-sky-400 font-bold text-xs mb-2 uppercase">Kurtosis</h4>
+                                <p class="text-xs text-slate-400">Outlier frequency. <b class="text-emerald-400">|v| &lt; 2</b> = normal. <b class="text-rose-400">|v| &gt; 5</b> = heavy outliers.</p>
+                            </div>
+                            <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                                <h4 class="text-sky-400 font-bold text-xs mb-2 uppercase">Skewness</h4>
+                                <p class="text-xs text-slate-400">Distribution asymmetry. <b class="text-emerald-400">|v| &lt; 1</b> = symmetric. <b class="text-rose-400">|v| &gt; 2</b> = heavily skewed.</p>
+                            </div>
+                            <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                                <h4 class="text-sky-400 font-bold text-xs mb-2 uppercase">Value Age (hours)</h4>
+                                <p class="text-xs text-slate-400">Data freshness. <b class="text-emerald-400">&lt;168h</b> = fresh. <b class="text-rose-400">&gt;1000h</b> = stale, pipeline may be broken.</p>
+                            </div>
+                            <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                                <h4 class="text-sky-400 font-bold text-xs mb-2 uppercase">Seasonality</h4>
+                                <p class="text-xs text-slate-400">Cycle in profile history. <b class="text-emerald-400">&gt;0</b> = repeating pattern every N runs. <b class="text-slate-500">0</b> = no pattern.</p>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+            </div>
+        </section>
+    </div>
+
+    <!-- AI Remediation Modal -->
+    <div id="remediation-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden">
+        <div class="glass-card max-w-2xl w-full mx-4 p-8 border-indigo-500/40">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-white flex items-center">
+                    <i class="fas fa-wand-magic-sparkles mr-3 text-indigo-400"></i> AI Remediation
+                </h3>
+                <button onclick="closeRemediation()" class="text-slate-400 hover:text-white text-xl"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="remediation-target" class="text-xs font-mono text-sky-400 mb-4 bg-sky-950/30 p-3 rounded-lg"></div>
+            <div id="remediation-content" class="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap max-h-[400px] overflow-y-auto"></div>
+            <div class="mt-8 flex justify-end">
+                <button onclick="closeRemediation()" class="bg-slate-800 px-6 py-2 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-slate-700 transition-all">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let tableCount = 0;
+        let activeJson = {};
+        let currentResults = [];
+
+        function getApiKey() { return document.getElementById('gemini-key')?.value || ''; }
+        function hasAI() { return getApiKey().length > 10; }
+
+        function updateAIStatus() {
+            const el = document.getElementById('ai-status');
+            if (hasAI()) { el.textContent = 'AI ON'; el.className = 'text-[10px] font-bold uppercase tracking-widest text-emerald-400'; }
+            else { el.textContent = 'offline'; el.className = 'text-[10px] font-bold uppercase tracking-widest text-slate-600'; }
+        }
+
+        // --- Gemini API ---
+        async function callGemini(prompt, systemPrompt) {
+            const key = getApiKey();
+            if (!key) throw new Error('No API key');
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined
+                })
+            });
+            if (!resp.ok) throw new Error(`Gemini API error: ${resp.status}`);
+            const data = await resp.json();
+            return data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
+        }
+
+        async function aiSuggestConfig() {
+            const prompt = document.getElementById('ai-prompt').value;
+            if (!prompt) return;
+            if (!hasAI()) { alert('Enter a Gemini API key at the top to enable AI features.'); return; }
+
+            const btn = document.getElementById('ai-suggest-btn');
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Thinking...';
+            btn.disabled = true;
+            try {
+                const sys = "You are a data engineer for OpenMetadata. Respond ONLY with a JSON array of objects with keys 'fqn', 'sampleLimit', 'sampleType'. FQNs follow the format 'service.database.schema.table' or 'service.database.schema.*' for wildcard. sampleType is 'ROWS' or 'PERCENTAGE'. No explanation, just JSON.";
+                const result = await callGemini(prompt, sys);
+                const cleaned = result.replace(/```json/g, '').replace(/```/g, '').trim();
+                const configArr = JSON.parse(cleaned);
+                document.getElementById('table-rows').innerHTML = "";
+                configArr.forEach(item => addTableRow(item));
+                btn.innerHTML = '<i class="fas fa-check mr-2"></i> Done';
+                setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 2000);
+            } catch (e) {
+                btn.innerHTML = '<i class="fas fa-exclamation-triangle mr-2"></i> Failed';
+                setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 3000);
+            }
+        }
+
+        async function refreshAISummary() {
+            if (!currentResults.length || !hasAI()) return;
+            const div = document.getElementById('ai-summary-text');
+            div.innerHTML = '<div class="loading-shimmer h-8 w-full rounded"></div>';
+            try {
+                const compact = currentResults.map(r => ({
+                    table: r.tableFqn,
+                    score: computeScore(r),
+                    flagged: Object.entries(r.columnMetrics).flatMap(([col, metrics]) =>
+                        Object.entries(metrics).filter(([m, v]) => rate(m, v) === 'bad').map(([m, v]) => `${col}.${m}=${v}`)
+                    )
+                }));
+                const prompt = `DQ profiler results: ${JSON.stringify(compact)}. Give a 2-3 sentence executive summary: overall health, biggest risk, and one recommended action. Plain text only.`;
+                const result = await callGemini(prompt, "You are a Principal Data Engineer reviewing data quality metrics.");
+                div.textContent = result.trim();
+            } catch (e) {
+                div.textContent = "Could not generate summary. Check your Gemini API key.";
+            }
+        }
+
+        async function getRemediation(tableFqn, column, metric, value) {
+            if (!hasAI()) { alert('Enter a Gemini API key at the top to enable AI features.'); return; }
+            document.getElementById('remediation-modal').classList.remove('hidden');
+            document.getElementById('remediation-target').textContent = `${tableFqn} > ${column} > ${metric} = ${value}`;
+            document.getElementById('remediation-content').innerHTML = '<div class="loading-shimmer h-24 w-full rounded"></div>';
+            try {
+                const prompt = `Table: ${tableFqn}, Column: ${column}, Metric: ${metric}, Value: ${value}. This is a data quality anomaly detected by statistical profiling. Provide: 1) What this likely means for the data, 2) A specific SQL query or process fix. Be concise and technical.`;
+                const result = await callGemini(prompt, "You are a Data Quality Expert. Provide actionable, specific remediations.");
+                document.getElementById('remediation-content').textContent = result;
+            } catch (e) {
+                document.getElementById('remediation-content').textContent = "Failed to load remediation. Check your API key.";
+            }
+        }
+
+        function closeRemediation() { document.getElementById('remediation-modal').classList.add('hidden'); }
+
+        // --- Rating (matches Java HtmlResultWriter.rate() exactly) ---
+        const ratingRules = {
+            entropy: v => v < 1 ? 'warn' : 'good',
+            relativeentropy: v => v > 2 ? 'bad' : (v > 0.5 ? 'warn' : 'good'),
+            kurtosis: v => Math.abs(v) > 5 ? 'bad' : (Math.abs(v) > 2 ? 'warn' : 'good'),
+            skewness: v => Math.abs(v) > 2 ? 'bad' : (Math.abs(v) > 1 ? 'warn' : 'good'),
+            valueage: v => v > 1000 ? 'bad' : (v > 168 ? 'warn' : 'good'),
+            seasonality: v => v > 0 ? 'good' : 'neutral'
+        };
+
+        const rate = (metric, value) => {
+            const key = metric.toLowerCase().replace(/[^a-z]/g, '');
+            return ratingRules[key]?.(value) || 'neutral';
+        };
+
+        const interpret = (metric, value) => {
+            const key = metric.toLowerCase().replace(/[^a-z]/g, '');
+            switch (key) {
+                case 'entropy': return value < 1 ? 'Very low diversity' : value < 3 ? 'Moderate diversity' : 'Well distributed';
+                case 'relativeentropy': return value > 2 ? 'Few values dominate' : value > 0.5 ? 'Some concentration' : 'Roughly balanced';
+                case 'kurtosis': return Math.abs(value) > 5 ? 'Heavy outliers detected' : Math.abs(value) > 2 ? 'Moderate outliers' : 'Normal distribution';
+                case 'skewness': return Math.abs(value) > 2 ? 'Heavily skewed' : Math.abs(value) > 1 ? 'Moderately skewed' : 'Roughly symmetric';
+                case 'valueage': return value > 1000 ? `Stale (${Math.round(value)}h)` : value > 168 ? `${Math.round(value)}h old` : `Fresh (${value.toFixed(1)}h)`;
+                case 'seasonality': return value > 0 ? `Cycle every ${Math.round(value)} runs` : 'No pattern';
+                default: return value.toFixed(2);
+            }
+        };
+
+        function normalizeResults(raw) {
+            return raw.map(r => {
+                const colMetrics = {};
+                if (r.columns) { r.columns.forEach(c => { colMetrics[c.column] = c.metrics || {}; }); }
+                else if (r.columnMetrics) { Object.assign(colMetrics, r.columnMetrics); }
+                return {
+                    tableFqn: r.table || r.tableFqn || 'unknown',
+                    timestamp: r.timestamp || Date.now(),
+                    rowCount: r.rowCount || 0,
+                    columnCount: r.columnCount || 0,
+                    tableMetrics: r.tableMetrics || {},
+                    columnMetrics: colMetrics
+                };
+            });
+        }
+
+        function computeScore(t) {
+            let total = 0, healthy = 0;
+            const check = (m, v) => { total++; const r = rate(m, v); if (r === 'good' || r === 'neutral') healthy++; };
+            Object.entries(t.tableMetrics || {}).forEach(([m, v]) => check(m, v));
+            Object.values(t.columnMetrics || {}).forEach(cols => Object.entries(cols).forEach(([m, v]) => check(m, v)));
+            return total === 0 ? 100 : Math.round((healthy / total) * 100);
+        }
+
+        function collectAllMetricNames(results) {
+            const names = new Set();
+            results.forEach(r => { Object.values(r.columnMetrics || {}).forEach(cols => Object.keys(cols).forEach(m => names.add(m))); });
+            const order = ['entropy', 'relativeEntropy', 'kurtosis', 'skewness', 'valueAge', 'seasonality'];
+            return order.filter(m => names.has(m)).concat([...names].filter(m => !order.includes(m)));
+        }
+
+        function renderDashboard(rawResults) {
+            const results = normalizeResults(rawResults);
+            currentResults = results;
+            const container = document.getElementById('dashboard-content');
+            const banner = document.getElementById('overall-health-banner');
+            document.getElementById('report-footer').classList.remove('hidden');
+            container.innerHTML = "";
+
+            let globalSum = 0;
+            results.forEach(r => globalSum += computeScore(r));
+            const score = results.length ? Math.round(globalSum / results.length) : 100;
+            const rating = score >= 80 ? 'good' : (score >= 50 ? 'warn' : 'bad');
+            const color = score >= 80 ? '#10b981' : (score >= 50 ? '#f59e0b' : '#ef4444');
+
+            let totalCols = 0, totalMetrics = 0;
+            results.forEach(r => {
+                totalCols += Object.keys(r.columnMetrics).length;
+                Object.values(r.columnMetrics).forEach(m => totalMetrics += Object.keys(m).length);
+                totalMetrics += Object.keys(r.tableMetrics).length;
+            });
+
+            banner.innerHTML = `
+                <div class="glass-card p-10 flex items-center gap-12">
+                    <div class="score-circle-container score-${rating} shadow-2xl">${score}</div>
+                    <div class="flex-grow">
+                        <h2 class="text-4xl font-black text-white mb-3">Health Score</h2>
+                        <p class="text-slate-300 text-lg mb-6">${results.length} table${results.length > 1 ? 's' : ''} &middot; ${totalCols} columns &middot; ${totalMetrics} metrics computed</p>
+                        <div class="score-bar h-3"><div class="score-fill" style="width:${score}%; background:${color}"></div></div>
+                    </div>
+                </div>`;
+
+            // Populate table selector dropdown
+            const selector = document.getElementById('table-selector');
+            selector.innerHTML = '';
+            results.forEach((table, idx) => {
+                const tScore = computeScore(table);
+                const icon = tScore >= 80 ? '✅' : (tScore >= 50 ? '⚠️' : '❌');
+                const opt = document.createElement('option');
+                opt.value = idx;
+                opt.textContent = `${icon} ${table.tableFqn}  (score: ${tScore})`;
+                selector.appendChild(opt);
+            });
+            document.getElementById('table-selector-row').classList.remove('hidden');
+
+            // Render all table cards (hidden), then show the first one
+            const metricNames = collectAllMetricNames(results);
+            results.forEach((table, idx) => {
+                container.insertAdjacentHTML('beforeend', buildTableCard(table, idx, metricNames));
+            });
+            showSelectedTable();
+
+            if (hasAI()) {
+                document.getElementById('ai-insights-box').classList.remove('hidden');
+                refreshAISummary();
+            } else {
+                document.getElementById('ai-insights-box').classList.add('hidden');
+            }
+        }
+
+        function buildTableCard(table, idx, metricNames) {
+            const tScore = computeScore(table);
+            const tRating = tScore >= 80 ? 'good' : (tScore >= 50 ? 'warn' : 'bad');
+            const cols = table.columnMetrics || {};
+            const ts = new Date(table.timestamp).toLocaleString();
+
+            let tableMetricsHtml = '';
+            if (Object.keys(table.tableMetrics).length > 0) {
+                tableMetricsHtml = `
+                    <div class="mb-6">
+                        <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Table-Level Metrics</h4>
+                        <div class="flex flex-wrap gap-3">
+                            ${Object.entries(table.tableMetrics).map(([m, v]) => {
+                                const r = rate(m, v);
+                                return `<div class="px-4 py-2 rounded-lg bg-${r} text-sm">
+                                    <span class="font-bold">${m}</span>: ${v.toFixed(2)}
+                                    <span class="text-xs opacity-75 ml-1">${interpret(m, v)}</span>
+                                </div>`;
+                            }).join('')}
+                        </div>
+                    </div>`;
+            }
+
+            return `
+                <div class="table-card glass-card overflow-hidden shadow-xl" data-table-idx="${idx}" style="display:none;">
+                    <div class="p-8 flex justify-between items-center">
+                        <div class="flex items-center gap-8">
+                            <div class="w-14 h-14 rounded-full score-${tRating} flex items-center justify-center font-black text-xl text-white">${tScore}</div>
+                            <div>
+                                <h3 class="text-xl font-bold text-white">${table.tableFqn}</h3>
+                                <p class="text-xs text-slate-400 uppercase font-bold mt-2 tracking-widest">${table.rowCount.toLocaleString()} rows &middot; ${table.columnCount} cols &middot; ${ts}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-10 border-t border-white/5 bg-black/40">
+                        ${tableMetricsHtml}
+                        <div class="overflow-x-auto rounded-xl border border-white/5 bg-black/20">
+                            <table class="w-full text-sm text-left">
+                                <thead class="text-slate-500 uppercase text-[10px] font-black border-b border-white/10 bg-white/5">
+                                    <tr>
+                                        <th class="p-5">Column</th>
+                                        ${metricNames.map(m => `<th class="p-5">${m}</th>`).join('')}
+                                        <th class="p-5">Status</th>
+                                        ${hasAI() ? '<th class="p-5">AI Fix</th>' : ''}
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-white/5">
+                                    ${Object.keys(cols).map(cName => {
+                                        const mSet = cols[cName];
+                                        const interps = [];
+                                        const badMetrics = [];
+                                        metricNames.forEach(m => {
+                                            if (mSet[m] !== undefined) {
+                                                const r = rate(m, mSet[m]);
+                                                if (r !== 'good' && r !== 'neutral') {
+                                                    interps.push(interpret(m, mSet[m]));
+                                                    if (r === 'bad') badMetrics.push({ m, v: mSet[m] });
+                                                }
+                                            }
+                                        });
+                                        const worstBad = badMetrics[0];
+                                        return `
+                                            <tr class="hover:bg-white/5 transition-colors">
+                                                <td class="p-5 font-black text-slate-200">${cName}</td>
+                                                ${metricNames.map(m => `
+                                                    <td class="p-5">
+                                                        <span class="metric-cell bg-${mSet[m] !== undefined ? rate(m, mSet[m]) : 'neutral'}">
+                                                            ${mSet[m] !== undefined ? mSet[m].toFixed(2) : '&mdash;'}
+                                                        </span>
+                                                    </td>
+                                                `).join('')}
+                                                <td class="p-5 text-xs text-slate-400 italic max-w-[200px]">${interps.length ? interps.join('; ') : '<span class="text-emerald-400">All normal</span>'}</td>
+                                                ${hasAI() ? `<td class="p-5">${worstBad ?
+                                                    `<button onclick="getRemediation('${table.tableFqn}', '${cName}', '${worstBad.m}', ${worstBad.v})"
+                                                        class="px-3 py-1.5 bg-indigo-500/20 text-indigo-400 border border-indigo-500/40 rounded-lg text-[10px] font-black hover:bg-indigo-500 hover:text-white transition-all whitespace-nowrap">
+                                                        <i class="fas fa-wand-magic-sparkles mr-1"></i> Fix
+                                                    </button>` : '&mdash;'}</td>` : ''}
+                                            </tr>`;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>`;
+        }
+
+        function showSelectedTable() {
+            const idx = parseInt(document.getElementById('table-selector').value);
+            document.querySelectorAll('.table-card').forEach(el => {
+                el.style.display = parseInt(el.dataset.tableIdx) === idx ? 'block' : 'none';
+            });
+        }
+
+        function loadSampleData() {
+            const data = [
+                {
+                    table: "local_postgres.openmetadata_db.public.demo_sales_clean",
+                    timestamp: Date.now(), rowCount: 500, columnCount: 5,
+                    tableMetrics: { seasonality: 0.0 },
+                    columns: [
+                        { column: "transaction_id", metrics: { entropy: 8.97, relativeEntropy: 0.0, kurtosis: -1.2, skewness: 0.0 } },
+                        { column: "product_category", metrics: { entropy: 2.32, relativeEntropy: 0.0 } },
+                        { column: "amount", metrics: { entropy: 8.93, relativeEntropy: 0.01, kurtosis: -0.68, skewness: -0.03 } },
+                        { column: "customer_region", metrics: { entropy: 2.0, relativeEntropy: 0.0 } },
+                        { column: "transaction_date", metrics: { entropy: 7.39, relativeEntropy: 0.0, valueAge: 88.7 } }
+                    ]
+                },
+                {
+                    table: "local_postgres.openmetadata_db.public.demo_sales_dirty",
+                    timestamp: Date.now(), rowCount: 500, columnCount: 5,
+                    tableMetrics: { seasonality: 0.0 },
+                    columns: [
+                        { column: "transaction_id", metrics: { entropy: 8.97, relativeEntropy: 0.0, kurtosis: -1.2, skewness: 0.0 } },
+                        { column: "product_category", metrics: { entropy: 0.4, relativeEntropy: 2.18 } },
+                        { column: "amount", metrics: { entropy: 8.44, relativeEntropy: 0.1, kurtosis: 15.23, skewness: 4.14 } },
+                        { column: "customer_region", metrics: { entropy: 0.0, relativeEntropy: 0.0 } },
+                        { column: "transaction_date", metrics: { entropy: 4.91, relativeEntropy: 0.0, valueAge: 2741.7 } }
+                    ]
+                }
+            ];
+            renderDashboard(data);
+        }
+
+        function handleFileUpload(e) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try { renderDashboard(JSON.parse(ev.target.result)); }
+                catch (err) { alert('Invalid JSON: ' + err.message); }
+            };
+            reader.readAsText(e.target.files[0]);
+        }
+
+        // --- Config Generator ---
+        function addTableRow(initial = {}) {
+            tableCount++;
+            const id = `row-${tableCount}`;
+            document.getElementById('no-tables-msg').classList.add('hidden');
+            const hasSampling = !!(initial.sampleLimit);
+            const hasJdbc = !!(initial.jdbcUrl);
+            const html = `
+                <div id="${id}" class="p-4 bg-slate-900/40 rounded-xl border border-white/5 relative group transition-all">
+                    <button onclick="removeRow('${id}')" class="absolute top-4 right-4 text-slate-600 hover:text-red-400 transition-colors"><i class="fas fa-times"></i></button>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-[9px] uppercase font-bold text-slate-500 mb-1 block">FQN (supports wildcards like schema.*)</label>
+                            <input type="text" oninput="generateJson()" class="fqn w-full p-2 text-sm font-mono text-sky-400" value="${initial.fqn || ''}" placeholder="service.database.schema.table">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Custom sampling</span>
+                            <label class="switch"><input type="checkbox" class="sampling-toggle" onchange="toggleField('${id}', '.sampling-fields')" ${hasSampling ? 'checked' : ''}><span class="slider"></span></label>
+                        </div>
+                        <div class="sampling-fields grid grid-cols-2 gap-3 ${hasSampling ? '' : 'hidden'}">
+                            <input type="number" oninput="generateJson()" class="limit w-full p-2 text-sm" value="${initial.sampleLimit || 500}" placeholder="Sample limit">
+                            <select onchange="generateJson()" class="type w-full p-2 text-sm">
+                                <option value="ROWS" ${initial.sampleType !== 'PERCENTAGE' ? 'selected' : ''}>ROWS</option>
+                                <option value="PERCENTAGE" ${initial.sampleType === 'PERCENTAGE' ? 'selected' : ''}>PERCENTAGE</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Explicit JDBC</span>
+                            <label class="switch"><input type="checkbox" class="jdbc-toggle" onchange="toggleField('${id}', '.jdbc-fields')" ${hasJdbc ? 'checked' : ''}><span class="slider"></span></label>
+                        </div>
+                        <div class="jdbc-fields space-y-2 ${hasJdbc ? '' : 'hidden'}">
+                            <input type="text" oninput="generateJson()" class="jdbc-url w-full p-2 text-sm" value="${initial.jdbcUrl || ''}" placeholder="jdbc:postgresql://host:5432/db">
+                            <input type="text" oninput="generateJson()" class="db-table w-full p-2 text-sm" value="${initial.tableName || ''}" placeholder="Table name">
+                        </div>
+                    </div>
+                </div>`;
+            document.getElementById('table-rows').insertAdjacentHTML('beforeend', html);
+            generateJson();
+        }
+
+        function toggleField(id, selector) {
+            const row = document.getElementById(id);
+            const toggle = row.querySelector(selector === '.sampling-fields' ? '.sampling-toggle' : '.jdbc-toggle');
+            row.querySelector(selector).classList.toggle('hidden', !toggle.checked);
+            generateJson();
+        }
+
+        function removeRow(id) {
+            document.getElementById(id).remove();
+            if (document.querySelectorAll('#table-rows > div').length === 0) document.getElementById('no-tables-msg').classList.remove('hidden');
+            generateJson();
+        }
+
+        function generateJson() {
+            const config = {
+                omUrl: document.getElementById('om-url').value,
+                omEmail: document.getElementById('om-email').value,
+                omPassword: btoa(document.getElementById('om-pwd').value),
+                dbUser: document.getElementById('db-user').value,
+                dbPassword: document.getElementById('db-pwd').value,
+                outputDir: 'output',
+                tables: []
+            };
+            document.querySelectorAll('#table-rows > div').forEach(row => {
+                const fqn = row.querySelector('.fqn')?.value;
+                if (!fqn) return;
+                const entry = { fqn };
+                if (row.querySelector('.sampling-toggle')?.checked) {
+                    entry.sampleLimit = parseInt(row.querySelector('.limit')?.value) || 500;
+                    entry.sampleType = row.querySelector('.type')?.value || 'ROWS';
+                }
+                if (row.querySelector('.jdbc-toggle')?.checked) {
+                    const url = row.querySelector('.jdbc-url')?.value;
+                    if (url) {
+                        entry.jdbcUrl = url;
+                        entry.tableName = row.querySelector('.db-table')?.value || '';
+                    }
+                }
+                config.tables.push(entry);
+            });
+            activeJson = config;
+            document.getElementById('json-preview').textContent = JSON.stringify(config, null, 2);
+        }
+
+        function goToStep(s) {
+            document.querySelectorAll('.wizard-step, .step-indicator').forEach(el => el.classList.remove('active'));
+            document.getElementById(`step-${s}`).classList.add('active');
+            document.getElementById(`nav-${s}`).classList.add('active');
+        }
+
+        function copyText(t, btn) {
+            navigator.clipboard.writeText(t);
+            if (btn) { const orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = orig, 1500); }
+        }
+
+        function downloadJson() {
+            const blob = new Blob([JSON.stringify(activeJson, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'config.json'; a.click();
+        }
+
+        window.onload = async () => {
+            // Restore Gemini key
+            const saved = localStorage.getItem('gemini-key');
+            if (saved) document.getElementById('gemini-key').value = saved;
+            updateAIStatus();
+            document.getElementById('gemini-key').addEventListener('input', updateAIStatus);
+            addTableRow({ fqn: "local_postgres.openmetadata_db.public.demo_sales_clean", jdbcUrl: "jdbc:postgresql://localhost:5432/openmetadata_db", tableName: "demo_sales_clean" });
+            addTableRow({ fqn: "local_postgres.openmetadata_db.public.demo_sales_dirty", jdbcUrl: "jdbc:postgresql://localhost:5432/openmetadata_db", tableName: "demo_sales_dirty" });
+
+            // Auto-load results from URL param: ?data=output/results.json
+            const params = new URLSearchParams(window.location.search);
+            const dataUrl = params.get('data');
+            if (dataUrl) {
+                try {
+                    const resp = await fetch(dataUrl);
+                    if (resp.ok) {
+                        const json = await resp.json();
+                        goToStep(3);
+                        renderDashboard(json);
+                    }
+                } catch (e) { console.warn('Could not auto-load:', e); }
+            }
+        };
+    </script>
+</body>
+</html>

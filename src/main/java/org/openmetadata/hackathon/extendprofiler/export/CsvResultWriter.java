@@ -22,6 +22,7 @@ public class CsvResultWriter {
     public void write(List<ProfileResult> results) throws IOException {
         Set<String> metricSet = new LinkedHashSet<>();
         for (ProfileResult r : results) {
+            metricSet.addAll(r.getTableMetrics().keySet());
             for (Map<String, Double> cm : r.getColumnMetrics().values()) {
                 metricSet.addAll(cm.keySet());
             }
@@ -39,6 +40,18 @@ public class CsvResultWriter {
              CSVPrinter printer = new CSVPrinter(writer, CSVFormat.DEFAULT.builder().setHeader(header).build())) {
 
             for (ProfileResult r : results) {
+                // table-level metrics
+                if (!r.getTableMetrics().isEmpty()) {
+                    Object[] row = new Object[metricNames.size() + 2];
+                    row[0] = r.getTableFqn();
+                    row[1] = "(table-level)";
+                    for (int i = 0; i < metricNames.size(); i++) {
+                        Double val = r.getTableMetrics().get(metricNames.get(i));
+                        row[i + 2] = val != null ? String.format("%.2f", val) : "N/A";
+                    }
+                    printer.printRecord(row);
+                }
+                // column-level metrics
                 for (Map.Entry<String, Map<String, Double>> col : r.getColumnMetrics().entrySet()) {
                     Object[] row = new Object[metricNames.size() + 2];
                     row[0] = r.getTableFqn();

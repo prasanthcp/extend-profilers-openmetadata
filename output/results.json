@@ -1,115 +1,93 @@
 [ {
-  "table" : "local_postgres.openmetadata_db.public.table_entity",
-  "timestamp" : 1777016123829,
-  "rowCount" : 517,
-  "columnCount" : 9,
+  "table" : "local_postgres.openmetadata_db.public.demo_sales_clean",
+  "timestamp" : 1777116311697,
+  "rowCount" : 500,
+  "columnCount" : 5,
   "tableMetrics" : {
-    "entropy" : 8.98
+    "seasonality" : 0.0
   },
   "columns" : [ {
-    "column" : "id",
+    "column" : "transaction_id",
     "metrics" : {
       "entropy" : 8.97,
-      "relativeEntropy" : 0.0
-    }
-  }, {
-    "column" : "json",
-    "metrics" : {
-      "entropy" : 8.97,
-      "relativeEntropy" : 0.0
-    }
-  }, {
-    "column" : "updatedat",
-    "metrics" : {
-      "entropy" : 8.96,
       "relativeEntropy" : 0.0,
-      "kurtosis" : 0.64,
-      "skewness" : 1.37,
-      "valueAge" : 188.72
+      "kurtosis" : -1.2,
+      "skewness" : 0.0,
+      "valueAge" : 493643.42
     }
   }, {
-    "column" : "updatedby",
+    "column" : "product_category",
     "metrics" : {
-      "entropy" : 1.23,
-      "relativeEntropy" : 0.36
-    }
-  }, {
-    "column" : "deleted",
-    "metrics" : {
-      "entropy" : 0.0,
+      "entropy" : 2.32,
       "relativeEntropy" : 0.0
     }
   }, {
-    "column" : "fqnhash",
+    "column" : "amount",
     "metrics" : {
-      "entropy" : 8.97,
+      "entropy" : 8.93,
+      "relativeEntropy" : 0.01,
+      "kurtosis" : -0.68,
+      "skewness" : -0.03,
+      "valueAge" : 493643.42
+    }
+  }, {
+    "column" : "customer_region",
+    "metrics" : {
+      "entropy" : 2.0,
       "relativeEntropy" : 0.0
     }
   }, {
-    "column" : "name",
+    "column" : "transaction_date",
     "metrics" : {
-      "entropy" : 6.72,
-      "relativeEntropy" : 1.33
-    }
-  }, {
-    "column" : "databaseschemahash",
-    "metrics" : {
-      "entropy" : 4.02,
-      "relativeEntropy" : 0.89
+      "entropy" : 7.39,
+      "relativeEntropy" : 0.0,
+      "valueAge" : 88.7
     }
   } ]
 }, {
-  "table" : "local_postgres.openmetadata_db.public.entity_relationship",
-  "timestamp" : 1777016124063,
-  "rowCount" : 2473,
-  "columnCount" : 8,
+  "table" : "local_postgres.openmetadata_db.public.demo_sales_dirty",
+  "timestamp" : 1777116311825,
+  "rowCount" : 500,
+  "columnCount" : 5,
   "tableMetrics" : {
-    "entropy" : 6.27
+    "seasonality" : 0.0
   },
   "columns" : [ {
-    "column" : "fromid",
+    "column" : "transaction_id",
     "metrics" : {
-      "entropy" : 5.21,
-      "relativeEntropy" : 2.83
+      "entropy" : 8.97,
+      "relativeEntropy" : 0.0,
+      "kurtosis" : -1.2,
+      "skewness" : 0.0,
+      "valueAge" : 493643.42
     }
   }, {
-    "column" : "toid",
+    "column" : "product_category",
     "metrics" : {
-      "entropy" : 9.75,
-      "relativeEntropy" : 0.29
+      "entropy" : 0.4,
+      "relativeEntropy" : 2.18
     }
   }, {
-    "column" : "fromentity",
+    "column" : "amount",
     "metrics" : {
-      "entropy" : 3.11,
-      "relativeEntropy" : 1.8
+      "entropy" : 8.44,
+      "relativeEntropy" : 0.1,
+      "kurtosis" : 15.23,
+      "skewness" : 4.14,
+      "valueAge" : 493643.42
     }
   }, {
-    "column" : "toentity",
-    "metrics" : {
-      "entropy" : 3.09,
-      "relativeEntropy" : 1.95
-    }
-  }, {
-    "column" : "relation",
-    "metrics" : {
-      "entropy" : 2.39,
-      "relativeEntropy" : 1.07,
-      "kurtosis" : 0.26,
-      "skewness" : 1.26,
-      "valueAge" : 493615.59
-    }
-  }, {
-    "column" : "json",
-    "metrics" : {
-      "entropy" : 4.0,
-      "relativeEntropy" : 0.0
-    }
-  }, {
-    "column" : "deleted",
+    "column" : "customer_region",
     "metrics" : {
       "entropy" : 0.0,
       "relativeEntropy" : 0.0
+    }
+  }, {
+    "column" : "transaction_date",
+    "metrics" : {
+      "entropy" : 4.91,
+      "relativeEntropy" : 0.0,
+      "valueAge" : 2741.7
     }
   } ]
 } ]

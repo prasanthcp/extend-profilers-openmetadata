@@ -1,0 +1,13 @@
+{
+  "omUrl": "http://localhost:8585",
+  "omEmail": "admin@open-metadata.org",
+  "omPassword": "YWRtaW4=",
+  "dbUser": "postgres",
+  "dbPassword": "password",
+  "outputDir": "output",
+  "tables": [
+    {
+      "fqn": "local_postgres.openmetadata_db.public.*"
+    }
+  ]
+}

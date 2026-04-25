@@ -20,6 +20,8 @@ public class JdbcDataSource implements DataSource, QueryCapable, AutoCloseable {
 
     private final SqlDialect dialect;
 
+    private static final int QUERY_TIMEOUT_SECONDS = 30;
+
     private List<ColumnInfo> cachedCols;
     private List<List<String>> cachedRows;
     private int totalRowCount = -1;
@@ -36,17 +38,22 @@ public class JdbcDataSource implements DataSource, QueryCapable, AutoCloseable {
         log.debug("JDBC connection established");
     }
 
+    public JdbcDataSource(Connection conn, String tableName, int sampleLimit,
+                          String sampleType, SqlDialect dialect) {
+        this.conn = conn;
+        this.tableName = tableName;
+        this.sampleLimit = sampleLimit;
+        this.sampleType = sampleType != null ? sampleType : "ROWS";
+        this.dialect = dialect;
+    }
+
     public JdbcDataSource(String jdbcUrl, String user, String password,
                           String tableName, int sampleLimit) throws SQLException {
         this(jdbcUrl, user, password, tableName, sampleLimit, "ROWS");
     }
 
     public JdbcDataSource(Connection conn, String tableName, int sampleLimit) {
-        this.conn = conn;
-        this.tableName = tableName;
-        this.sampleLimit = sampleLimit;
-        this.sampleType = "ROWS";
-        this.dialect = SqlDialect.GENERIC; // default to GENERIC if not provided
+        this(conn, tableName, sampleLimit, "ROWS", SqlDialect.GENERIC);
     }
 
     @Override
@@ -127,7 +134,7 @@ public class JdbcDataSource implements DataSource, QueryCapable, AutoCloseable {
         cachedRows = new ArrayList<>();
 
         try (Statement stmt = conn.createStatement()) {
-            // actual row count
+            stmt.setQueryTimeout(QUERY_TIMEOUT_SECONDS);
             try (ResultSet cnt = stmt.executeQuery("SELECT COUNT(*) FROM " + tableName)) {
                 if (cnt.next()) totalRowCount = cnt.getInt(1);
             }
@@ -141,7 +148,7 @@ public class JdbcDataSource implements DataSource, QueryCapable, AutoCloseable {
             }
 
             // random sample
-            String query  = getDialect().randomSampleQuery(tableName, effectiveLimit);
+            String query  = getDialect().randomSampleQuery(tableName, effectiveLimit, totalRowCount);
             try (ResultSet rs = stmt.executeQuery(query)) {
                 ResultSetMetaData meta = rs.getMetaData();
                 int colCount = meta.getColumnCount();
@@ -186,19 +193,21 @@ public class JdbcDataSource implements DataSource, QueryCapable, AutoCloseable {
     public List<Map<String, String>> executeQuery(String sql) {
         
         List<Map<String, String>> results = new ArrayList<>();
-        try (Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-            ResultSetMetaData meta = rs.getMetaData();
-            int colCount = meta.getColumnCount();
+        try (Statement stmt = conn.createStatement()) {
+            stmt.setQueryTimeout(QUERY_TIMEOUT_SECONDS);
+            try (ResultSet rs = stmt.executeQuery(sql)) {
+                ResultSetMetaData meta = rs.getMetaData();
+                int colCount = meta.getColumnCount();
 
-            while (rs.next()) {
-                Map<String, String> row = new LinkedHashMap<>();
-                for (int c = 1; c <= colCount; c++) {
-                    String colName = meta.getColumnName(c);
-                    Object val = rs.getObject(c);
-                    row.put(colName, val != null ? val.toString() : null);
+                while (rs.next()) {
+                    Map<String, String> row = new LinkedHashMap<>();
+                    for (int c = 1; c <= colCount; c++) {
+                        String colName = meta.getColumnName(c);
+                        Object val = rs.getObject(c);
+                        row.put(colName, val != null ? val.toString() : null);
+                    }
+                    results.add(row);
                 }
-                results.add(row);
             }
         } catch (SQLException e) {
             log.debug("Query failed: {}", e.getMessage());

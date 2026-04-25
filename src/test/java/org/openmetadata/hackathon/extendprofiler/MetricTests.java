@@ -202,12 +202,10 @@ class MetricTests {
     }
 
     @Test
-    void registry_tableLevelMetrics_includesEntropy() {
+    void registry_noTableLevelMetrics() {
         MetricRegistry reg = MetricRegistry.defaults();
         List<Metric> tableLvl = reg.forTable();
-        List<String> names = tableLvl.stream().map(Metric::getName).toList();
-        assertTrue(names.contains("entropy"));
-        assertFalse(names.contains("kurtosis"), "kurtosis should not be table-level");
+        assertTrue(tableLvl.isEmpty(), "all metrics should be column-level only (seasonality is computed separately)");
     }
 
     @Test

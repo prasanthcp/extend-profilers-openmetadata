@@ -39,10 +39,8 @@ public class ProfileResult {
     public String getOmUrl()               { return omUrl; }
     public void setOmUrl(String omUrl)     { this.omUrl = omUrl; }
 
-    // all unique metric names across columns (for CSV headers)
-    public List<String> allMetricNames() {
+    public List<String> allColumnMetricNames() {
         Set<String> names = new LinkedHashSet<>();
-        names.addAll(tableMetrics.keySet());
         for (Map<String, Double> cm : columnMetrics.values()) {
             names.addAll(cm.keySet());
         }

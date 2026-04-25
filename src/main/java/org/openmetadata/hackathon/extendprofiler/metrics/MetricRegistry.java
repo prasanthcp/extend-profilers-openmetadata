@@ -59,10 +59,9 @@ public class MetricRegistry {
         Set<ColType> numOnly  = EnumSet.of(ColType.NUMERIC);
 
         Set<Level> colLevel      = EnumSet.of(Level.COLUMN);
-        Set<Level> bothLevels    = EnumSet.of(Level.TABLE, Level.COLUMN);
 
-        // entropy — works on any column type, both levels
-        reg.register(new EntropyMetric(),      allTypes, bothLevels);
+        // entropy — works on any column type, column-level only
+        reg.register(new EntropyMetric(),      allTypes, colLevel);
         // relative entropy (KL divergence vs uniform) — same applicability as entropy
         reg.register(new RelativeEntropyMetric(), allTypes, colLevel);
         // kurtosis / skewness — numeric columns only

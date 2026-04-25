@@ -20,18 +20,21 @@ public class ConnectionResolver {
         "snowflake", "jdbc:snowflake://"
     );
 
+    // Docker-internal hostnames that should be rewritten to localhost
+    // when the profiler runs on the host machine
+    private static final Map<String, String> HOST_REWRITES = Map.of(
+        "openmetadata_postgresql", "localhost",
+        "openmetadata_mysql", "localhost",
+        "openmetadata_mssql", "localhost"
+    );
+
     public static class ResolvedConnection {
         public final String jdbcUrl;
-        public final String user;
-        public final String password;
         public final String tableName;
         public final SqlDialect dialect;
 
-        public ResolvedConnection(String jdbcUrl, String user, String password,
-                                  String tableName, SqlDialect dialect) {
+        public ResolvedConnection(String jdbcUrl, String tableName, SqlDialect dialect) {
             this.jdbcUrl = jdbcUrl;
-            this.user = user;
-            this.password = password;
             this.tableName = tableName;
             this.dialect = dialect;
         }
@@ -42,8 +45,6 @@ public class ConnectionResolver {
         JsonNode config = serviceJson.path("connection").path("config");
 
         String hostPort = config.path("hostPort").asText(null);
-        String username = config.path("username").asText(null);
-        String password = config.path("password").asText(null);
         String database = config.path("database").asText(null);
 
         if (hostPort == null) {
@@ -57,6 +58,8 @@ public class ConnectionResolver {
             return null;
         }
 
+        hostPort = rewriteHost(hostPort);
+
         String jdbcUrl = prefix + hostPort;
         if (database != null) {
             jdbcUrl += "/" + database;
@@ -66,7 +69,7 @@ public class ConnectionResolver {
         SqlDialect dialect = SqlDialect.fromJdbcUrl(jdbcUrl);
 
         log.debug("Resolved JDBC for {}: url={}, dialect={}, table={}", serviceType, jdbcUrl, dialect, tableName);
-        return new ResolvedConnection(jdbcUrl, username, password, tableName, dialect);
+        return new ResolvedConnection(jdbcUrl, tableName, dialect);
     }
 
     public static String extractServiceName(String fqn) {
@@ -77,5 +80,17 @@ public class ConnectionResolver {
     public static String extractTableName(String fqn) {
         String[] parts = fqn.split("\\.");
         return parts.length >= 4 ? parts[3] : null;
+    }
+
+    private static String rewriteHost(String hostPort) {
+        int colonIdx = hostPort.indexOf(':');
+        String host = colonIdx > 0 ? hostPort.substring(0, colonIdx) : hostPort;
+        String replacement = HOST_REWRITES.get(host);
+        if (replacement != null) {
+            String rewritten = colonIdx > 0 ? replacement + hostPort.substring(colonIdx) : replacement;
+            log.warn("Rewrote Docker-internal host '{}' → '{}'", hostPort, rewritten);
+            return rewritten;
+        }
+        return hostPort;
     }
 }

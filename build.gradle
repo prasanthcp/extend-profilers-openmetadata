@@ -53,7 +53,9 @@ test {
 }
 
 tasks.register('fatJar', Jar) { // run as ./gradlew run --args='config.json'
-    archiveClassifier = 'all'
+    archiveBaseName = 'profiler'
+    archiveVersion = ''
+    archiveClassifier = ''
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     manifest {
         attributes 'Main-Class': 'org.openmetadata.hackathon.extendprofiler.ProfileRunner'

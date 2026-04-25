@@ -26,11 +26,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   align-items: center; justify-content: center; font-size: 1.2em; font-weight: 700; color: #fff; flex-shrink: 0; }
 .card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.07);
         padding: 24px; margin-bottom: 20px; }
-details.card > summary { cursor: pointer; list-style: none; }
-details.card > summary::-webkit-details-marker { display: none; }
-details.card > summary::before { content: '\25B6'; display: inline-block; margin-right: 8px;
-  font-size: 0.7em; transition: transform 0.2s; vertical-align: middle; }
-details.card[open] > summary::before { transform: rotate(90deg); }
 .card h2 { font-size: 1.1em; word-break: break-all; margin: 0; display: inline; }
 .card-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .meta { font-size: 0.85em; color: #636e72; margin: 4px 0 12px; }
@@ -51,13 +46,14 @@ td { padding: 7px 10px; border-bottom: 1px solid #f0f0f0; }
 .badge-bad  { background: #d6336120; color: #d63361; }
 .badge-neutral { background: #dfe6e920; color: #636e72; }
 .dot-inline { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
-.legend-card { }
-.legend-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 0.9em; }
-.legend-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
-.dot-good { background: #00b894; }
-.dot-warn { background: #e17055; }
-.dot-bad  { background: #d63361; }
-.dot-na   { background: #b2bec3; }
+.get-started { margin-bottom: 20px; }
+.get-started summary { cursor: pointer; font-weight: 600; font-size: 1.05em; color: #6c5ce7; padding: 14px 20px; }
+.get-started .steps { padding: 0 24px 16px; }
+.get-started .step { margin: 10px 0; }
+.get-started .step b { color: #2d3436; }
+.get-started .step p { margin: 4px 0 0; color: #636e72; font-size: 0.9em; }
+.get-started pre { background: #2d3436; color: #dfe6e9; padding: 10px 14px; border-radius: 6px;
+  font-size: 0.85em; overflow-x: auto; margin: 6px 0 0; }
 .ref-card { }
 .ref-subtitle { color: #636e72; font-size: 0.9em; margin: 4px 0 12px; }
 .ref-table td, .ref-table th { font-size: 0.85em; padding: 8px 10px; vertical-align: top; }
@@ -67,83 +63,98 @@ td { padding: 7px 10px; border-bottom: 1px solid #f0f0f0; }
 .ref-bad  { background: #d6336110; }
 .om-link { color: #6c5ce7; text-decoration: none; font-weight: 600; }
 .om-link:hover { text-decoration: underline; }
+.selector-row { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.selector-row label { font-size: 0.85em; font-weight: 600; color: #636e72; white-space: nowrap; }
+.selector-row select { flex: 1; max-width: 600px; padding: 10px 14px; border-radius: 8px;
+  border: 1px solid #dfe6e9; font-family: monospace; font-size: 0.9em; background: #fff; cursor: pointer; }
+.selector-row select:focus { outline: 2px solid #6c5ce7; outline-offset: 2px; }
 footer { text-align: center; color: #b2bec3; font-size: 0.8em; padding: 20px 0; }
 </style>
 </head>
 <body>
 <div class="summary">
   <h1>OpenMetadata Extended Profiler Report</h1>
-  <p>2 tables &middot; 17 columns &middot; 38 metrics computed</p>
+  <p>2 tables &middot; 10 columns &middot; 36 metrics computed</p>
 </div>
 <div class="health-card">
-  <div class="score-circle score-warn">68</div>
+  <div class="score-circle score-warn">72</div>
   <div class="score-detail">
     <h2>Overall Data Health Score</h2>
     <p>Fair — several metrics are outside normal range. Review the flagged items below.</p>
-    <div class="score-bar"><div class="score-fill score-warn" style="width:68%"></div></div>
+    <div class="score-bar"><div class="score-fill score-warn" style="width:72%"></div></div>
   </div>
 </div>
-<details class="card">
-  <summary class="card-header">
-    <div>
-      <h2>local_postgres.openmetadata_db.public.table_entity</h2>
-      <p class="meta">517 rows &middot; 9 columns &middot; 2026-04-24 13:05:23 &middot; score: 75 &middot; <a href="http://localhost:8585/table/local_postgres.openmetadata_db.public.table_entity/profiler/table-profile" target="_blank" class="om-link">View in OpenMetadata</a></p>
+<details class="card get-started">
+  <summary>Get Started</summary>
+  <div class="steps">
+    <div class="step"><b>1. Start OpenMetadata</b>
+      <pre>git clone https://github.com/open-metadata/OpenMetadata.git
+cd OpenMetadata/docker/development
+docker compose up -d</pre>
     </div>
-    <div class="table-score score-warn">75</div>
-  </summary>
+    <div class="step"><b>2. Clone this repo</b>
+      <pre>git clone https://github.com/prasanthcp/extend-profilers-openmetadata.git
+cd extend-profilers-openmetadata</pre>
+    </div>
+    <div class="step"><b>3. Configure</b>
+      <p>Edit <code>config.json</code> with your OM URL, DB credentials, and target tables/schema.</p>
+    </div>
+    <div class="step"><b>4. Run the profiler</b>
+      <pre>java -jar extend-profilers-openmetadata-0.1.0-SNAPSHOT-all.jar config.json</pre>
+    </div>
+    <div class="step"><b>5. View results</b>
+      <p>Open <code>output/LatestReport.html</code> or check the OM UI for custom metrics.</p>
+    </div>
+  </div>
+</details>
+<div class="selector-row">
+  <label>Select Table</label>
+  <select id="table-selector" onchange="showTable()">
+    <option value="0">✅ local_postgres.openmetadata_db.public.demo_sales_clean  (score: 88)</option>
+    <option value="1">⚠️ local_postgres.openmetadata_db.public.demo_sales_dirty  (score: 55)</option>
+  </select>
+</div>
+<div class="card table-card" id="tbl-0">
+  <div class="card-header">
+    <div>
+      <h2>local_postgres.openmetadata_db.public.demo_sales_clean</h2>
+      <p class="meta">500 rows &middot; 5 columns &middot; 2026-04-25 16:55:11 &middot; score: 88 &middot; <a href="http://localhost:8585/table/local_postgres.openmetadata_db.public.demo_sales_clean/profiler/table-profile" target="_blank" class="om-link">View in OpenMetadata</a></p>
+    </div>
+    <div class="table-score score-good">88</div>
+  </div>
   <h3>Table-level metrics</h3>
   <table><tr><th>Metric</th><th>Value</th><th>Status</th><th>Interpretation</th></tr>
-  <tr><td>entropy</td><td class="good">8.98</td><td><span class="badge badge-good">Normal</span></td><td class="interp">High diversity — values well spread</td></tr>
+  <tr><td>seasonality</td><td class="neutral">0</td><td><span class="badge badge-neutral">Info</span></td><td class="interp">No repeating pattern detected</td></tr>
   </table>
   <h3>Advanced Metrics</h3>
   <table><tr><th>Column</th><th>entropy</th><th>relativeEntropy</th><th>kurtosis</th><th>skewness</th><th>valueAge</th><th>Interpretation</th></tr>
-  <tr><td class="col-name">id</td><td class="good">8.97</td><td class="good">0</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced</span></td></tr>
-  <tr><td class="col-name">json</td><td class="good">8.97</td><td class="good">0</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced</span></td></tr>
-  <tr><td class="col-name">updatedat</td><td class="good">8.96</td><td class="good">0.00</td><td class="good">0.64</td><td class="warn">1.37</td><td class="warn">188.72</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced; Normal tail behavior; Moderately right-skewed; Data is 188h old — over a week</span></td></tr>
-  <tr><td class="col-name">updatedby</td><td class="good">1.23</td><td class="good">0.36</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">Moderate diversity; Distribution roughly balanced</span></td></tr>
-  <tr><td class="col-name">deleted</td><td class="warn">0</td><td class="good">0</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">Very low diversity — nearly all values identical; Distribution roughly balanced</span></td></tr>
-  <tr><td class="col-name">fqnhash</td><td class="good">8.97</td><td class="good">0</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced</span></td></tr>
-  <tr><td class="col-name">name</td><td class="good">6.72</td><td class="warn">1.33</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Some concentration in certain values</span></td></tr>
-  <tr><td class="col-name">databaseschemahash</td><td class="good">4.02</td><td class="warn">0.89</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Some concentration in certain values</span></td></tr>
+  <tr><td class="col-name">transaction_id</td><td class="good">8.97</td><td class="good">0</td><td class="good">-1.20</td><td class="good">0</td><td class="bad">493643.42</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced; Normal tail behavior; Roughly symmetric; Stale data (493643h) — pipeline may be broken</span></td></tr>
+  <tr><td class="col-name">product_category</td><td class="good">2.32</td><td class="good">0</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">Moderate diversity; Distribution roughly balanced</span></td></tr>
+  <tr><td class="col-name">amount</td><td class="good">8.93</td><td class="good">0.01</td><td class="good">-0.68</td><td class="good">-0.03</td><td class="bad">493643.42</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced; Normal tail behavior; Roughly symmetric; Stale data (493643h) — pipeline may be broken</span></td></tr>
+  <tr><td class="col-name">customer_region</td><td class="good">2</td><td class="good">0</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">Moderate diversity; Distribution roughly balanced</span></td></tr>
+  <tr><td class="col-name">transaction_date</td><td class="good">7.39</td><td class="good">0.00</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="good">88.70</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced; Data is 88h old</span></td></tr>
   </table>
-</details>
-<details class="card">
-  <summary class="card-header">
+</div>
+<div class="card table-card" id="tbl-1" style="display:none">
+  <div class="card-header">
     <div>
-      <h2>local_postgres.openmetadata_db.public.entity_relationship</h2>
-      <p class="meta">2473 rows &middot; 8 columns &middot; 2026-04-24 13:05:24 &middot; score: 61 &middot; <a href="http://localhost:8585/table/local_postgres.openmetadata_db.public.entity_relationship/profiler/table-profile" target="_blank" class="om-link">View in OpenMetadata</a></p>
+      <h2>local_postgres.openmetadata_db.public.demo_sales_dirty</h2>
+      <p class="meta">500 rows &middot; 5 columns &middot; 2026-04-25 16:55:11 &middot; score: 55 &middot; <a href="http://localhost:8585/table/local_postgres.openmetadata_db.public.demo_sales_dirty/profiler/table-profile" target="_blank" class="om-link">View in OpenMetadata</a></p>
     </div>
-    <div class="table-score score-warn">61</div>
-  </summary>
+    <div class="table-score score-warn">55</div>
+  </div>
   <h3>Table-level metrics</h3>
   <table><tr><th>Metric</th><th>Value</th><th>Status</th><th>Interpretation</th></tr>
-  <tr><td>entropy</td><td class="good">6.27</td><td><span class="badge badge-good">Normal</span></td><td class="interp">High diversity — values well spread</td></tr>
+  <tr><td>seasonality</td><td class="neutral">0</td><td><span class="badge badge-neutral">Info</span></td><td class="interp">No repeating pattern detected</td></tr>
   </table>
   <h3>Advanced Metrics</h3>
   <table><tr><th>Column</th><th>entropy</th><th>relativeEntropy</th><th>kurtosis</th><th>skewness</th><th>valueAge</th><th>Interpretation</th></tr>
-  <tr><td class="col-name">fromid</td><td class="good">5.21</td><td class="bad">2.83</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Significant concentration — few values dominate</span></td></tr>
-  <tr><td class="col-name">toid</td><td class="good">9.75</td><td class="good">0.29</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced</span></td></tr>
-  <tr><td class="col-name">fromentity</td><td class="good">3.11</td><td class="warn">1.80</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Some concentration in certain values</span></td></tr>
-  <tr><td class="col-name">toentity</td><td class="good">3.09</td><td class="warn">1.95</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Some concentration in certain values</span></td></tr>
-  <tr><td class="col-name">relation</td><td class="good">2.39</td><td class="warn">1.07</td><td class="good">0.26</td><td class="warn">1.26</td><td class="bad">493615.59</td><td><span class="interp">Moderate diversity; Some concentration in certain values; Normal tail behavior; Moderately right-skewed; Stale data (493615h) — pipeline may be broken</span></td></tr>
-  <tr><td class="col-name">json</td><td class="good">4</td><td class="good">0</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced</span></td></tr>
-  <tr><td class="col-name">deleted</td><td class="warn">0</td><td class="good">0</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">Very low diversity — nearly all values identical; Distribution roughly balanced</span></td></tr>
+  <tr><td class="col-name">transaction_id</td><td class="good">8.97</td><td class="good">0</td><td class="good">-1.20</td><td class="good">0</td><td class="bad">493643.42</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced; Normal tail behavior; Roughly symmetric; Stale data (493643h) — pipeline may be broken</span></td></tr>
+  <tr><td class="col-name">product_category</td><td class="warn">0.40</td><td class="bad">2.18</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">Very low diversity — nearly all values identical; Significant concentration — few values dominate</span></td></tr>
+  <tr><td class="col-name">amount</td><td class="good">8.44</td><td class="good">0.10</td><td class="bad">15.23</td><td class="bad">4.14</td><td class="bad">493643.42</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced; Heavy outliers — investigate extreme values; Heavily right-skewed — long tail of large values; Stale data (493643h) — pipeline may be broken</span></td></tr>
+  <tr><td class="col-name">customer_region</td><td class="warn">0</td><td class="good">0</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td><span class="interp">Very low diversity — nearly all values identical; Distribution roughly balanced</span></td></tr>
+  <tr><td class="col-name">transaction_date</td><td class="good">4.91</td><td class="good">0.00</td><td class="na">&mdash;</td><td class="na">&mdash;</td><td class="bad">2741.70</td><td><span class="interp">High diversity — values well spread; Distribution roughly balanced; Stale data (2741h) — pipeline may be broken</span></td></tr>
   </table>
-</details>
-<div class="card legend-card">
-  <h2>Color Legend</h2>
-  <div class="legend-row">
-    <span class="legend-dot dot-good"></span><b>Green — Normal</b>: Value is within the expected healthy range. No action needed.
-  </div>
-  <div class="legend-row">
-    <span class="legend-dot dot-warn"></span><b>Amber — Warning</b>: Value is outside the typical range. Worth investigating.
-  </div>
-  <div class="legend-row">
-    <span class="legend-dot dot-bad"></span><b>Red — Attention</b>: Value indicates a potential data quality issue. Investigate promptly.
-  </div>
-  <div class="legend-row">
-    <span class="legend-dot dot-na"></span><b>Grey (—)</b>: Metric not applicable for this column type.
-  </div>
 </div>
 <div class="card ref-card">
   <h2>Metric Reference Guide</h2>
@@ -159,5 +170,13 @@ footer { text-align: center; color: #b2bec3; font-size: 0.8em; padding: 20px 0; 
   </table>
 </div>
 <footer>Generated by extend-profilers-openmetadata</footer>
+<script>
+function showTable() {
+  document.querySelectorAll('.table-card').forEach(function(el) { el.style.display = 'none'; });
+  var idx = document.getElementById('table-selector').value;
+  var card = document.getElementById('tbl-' + idx);
+  if (card) card.style.display = 'block';
+}
+</script>
 </body>
 </html>

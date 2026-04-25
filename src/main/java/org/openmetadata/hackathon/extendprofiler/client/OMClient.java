@@ -10,6 +10,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import okhttp3.*;
 
+import java.util.concurrent.TimeUnit;
+
 /*
  * Thin wrapper around the OpenMetadata REST API.
  * Handles auth + the handful of endpoints we actually need
@@ -17,7 +19,12 @@ import okhttp3.*;
  */
 public class OMClient {
 
-    private final OkHttpClient http = new OkHttpClient();
+    private final OkHttpClient http = new OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .connectionPool(new ConnectionPool(5, 5, TimeUnit.MINUTES))
+            .build();
     private final ObjectMapper json = new ObjectMapper();
     private final String baseUrl;
     private String authToken;

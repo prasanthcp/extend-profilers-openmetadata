@@ -34,8 +34,6 @@ class ConnectionResolverTest {
         ResolvedConnection conn = ConnectionResolver.resolve(json, "svc.mydb.public.users");
 
         assertEquals("jdbc:postgresql://localhost:5432/mydb", conn.jdbcUrl);
-        assertEquals("user", conn.user);
-        assertEquals("pass", conn.password);
         assertEquals("users", conn.tableName);
         assertEquals(SqlDialect.POSTGRESQL, conn.dialect);
     }
@@ -46,8 +44,6 @@ class ConnectionResolverTest {
         ResolvedConnection conn = ConnectionResolver.resolve(json, "svc.app.schema.orders");
 
         assertEquals("jdbc:mysql://db.example.com:3306/app", conn.jdbcUrl);
-        assertEquals("root", conn.user);
-        assertEquals("secret", conn.password);
         assertEquals("orders", conn.tableName);
         assertEquals(SqlDialect.MYSQL, conn.dialect);
     }
@@ -96,7 +92,7 @@ class ConnectionResolverTest {
         assertEquals("jdbc:postgresql://localhost:5432", conn.jdbcUrl);
     }
 
-    // ---- resolve: null credentials ----
+    // ---- resolve: null credentials still resolves URL ----
 
     @Test
     void resolve_nullCredentials_stillResolves() {
@@ -104,8 +100,7 @@ class ConnectionResolverTest {
         ResolvedConnection conn = ConnectionResolver.resolve(json, "svc.db.public.t");
 
         assertNotNull(conn);
-        assertNull(conn.user);
-        assertNull(conn.password);
+        assertEquals("jdbc:postgresql://localhost:5432/db", conn.jdbcUrl);
     }
 
     // ---- resolve: failure cases ----
