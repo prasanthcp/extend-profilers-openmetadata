@@ -88,7 +88,7 @@ public class ConnectionResolver {
         String replacement = HOST_REWRITES.get(host);
         if (replacement != null) {
             String rewritten = colonIdx > 0 ? replacement + hostPort.substring(colonIdx) : replacement;
-            log.warn("Rewrote Docker-internal host '{}' → '{}'", hostPort, rewritten);
+            log.debug("Rewrote Docker-internal host '{}' → '{}'", hostPort, rewritten);
             return rewritten;
         }
         return hostPort;
